@@ -203,6 +203,80 @@ Le token est valide 1 mois (jusqu'au 2026-06-03). Penser à renouveler avant.
 
 ---
 
+## 0quater. 🐛 BUGS POST-V1.11 — Diagnostic + checklist senior par bug (3 mai soir)
+
+> Pino a installé l'APK et identifié 4 bugs après 30s de test. Diagnostic
+> visuel via frames extraites des vidéos. Plan d'attaque rigoureux avec
+> validation entre chaque étape.
+
+### 🐛 BUG-ST-1 : Pièces FLOUES au démarrage de partie
+**Symptôme** : Les premières pièces apparaissent floues/pixelisées (pas en 3D).
+Après quelques secondes elles deviennent nettes.
+**Cause root** : Le canvas démarre avec `width={1} height={1}` (pour éviter le flash 0×0).
+Le ResizeObserver met du temps à kicker → premier render avec backing store 1×1 → upscale énorme = flou.
+
+**Checklist senior fix** :
+- [ ] Étape 1 : Set la taille du canvas IMMÉDIATEMENT au mount (avant 1er render React)
+  → utiliser un useLayoutEffect (sync) au lieu de useEffect (async)
+- [ ] Étape 2 : Calculer la taille initiale via `cv.parentElement.getBoundingClientRect()`
+- [ ] Étape 3 : Vérifier que `cv.width` et `cv.height` sont bien set AVANT le 1er drawBoard
+- [ ] Étape 4 : Mesure de succès = pas de pièce floue à la 1ère frame (test : démarrer 10 parties)
+
+### 🐛 BUG-ST-2 : Pièces qui DISPARAISSENT à la rotation
+**Symptôme** : Quand l'utilisateur tourne une pièce, elle disparaît parfois (intermittent, alterné).
+"Si la 1ère disparaît, la suivante reste, puis celle d'après disparaît."
+**Causes potentielles** (à investiguer) :
+- (A) `rotatePiece()` mute G.piece à un nouvel objet sans le re-render
+- (B) Race condition entre setTick et le rendu canvas (re-render avec la pièce déjà locked)
+- (C) Le test `isGameOver(grid, piece)` après rotation considère faussement game over
+- (D) Le `lockPieceFlow` après rotation+collision spawn une nouvelle pièce qui passe à travers
+
+**Checklist senior fix** :
+- [ ] Étape 1 : Reproduire le bug en local (rotater 20× rapidement → enregistrer le comportement)
+- [ ] Étape 2 : Logger chaque rotation : avant/après, kick utilisé, succès/échec
+- [ ] Étape 3 : Identifier la cause précise (A/B/C/D) via les logs
+- [ ] Étape 4 : Fix ciblé + test (rotater 50× → 0 disparition)
+- [ ] Étape 5 : Mesure de succès = vidéo de 60s sans aucune disparition
+
+### 🐛 BUG-ST-3 : VFX BOOSTERS absents
+**Symptôme** : Quand on active un booster, on voit l'effet logique (lignes effacées, etc.)
+mais PAS les VFX visuels comme dans Tetroid (laser beams qui balayent, météorites qui tombent,
+flocons de neige pour freeze, vagues violettes pour magnet).
+**Cause root** : Quand j'ai porté les boosters de Tetroid, j'ai porté la LOGIQUE
+(applyLaser, applyMeteor, etc.) mais PAS les VFX (laserBeams, meteorites, freezeFlakes,
+magnetWaves) qui sont définis dans `tetroid-pro/js/boosters.js` lignes 121-442.
+
+**Checklist senior fix** :
+- [ ] Étape 1 : Lire les 4 systèmes VFX Tetroid : `laserBlast()`, `launchMeteor()` + `updateMeteors()` + draw, `spawnFreezeEffects()` + `updateFreezeEffects()` + `drawFreezeEffects()`, `spawnMagnetWaves()` + `updateMagnetWaves()` + `drawMagnetWaves()`
+- [ ] Étape 2 : Créer un module `src/game/booster-fx.js` avec ces 4 systèmes (state + update + draw)
+- [ ] Étape 3 : Intégrer dans le game loop GameScreen (update à chaque frame)
+- [ ] Étape 4 : Intégrer dans render.js (draw après le board)
+- [ ] Étape 5 : Mesure de succès = activer chaque booster → voir VFX identique à Tetroid
+
+### 🐛 BUG-BYER-1 : Mode sombre incomplet + textes/icônes inversés
+**Symptômes** :
+- Mode sombre ne va pas jusqu'au fond (zone du bas reste claire)
+- Textes blancs sur boutons rouges deviennent NOIRS (illisibles)
+- Headers rouges deviennent rose pâle
+- Images peuvent être assombries
+**Cause root** : Le dark mode utilise `filter: invert(1.0) hue-rotate(180deg)` sur le body.
+Cette approche INVERSE TOUT, y compris :
+- Textes blancs sur boutons (deviennent noirs)
+- Couleurs vives type rouge brand (deviennent pastel)
+- Images (contre-inversées mais imparfait selon contenu)
+
+C'est une dette technique du choix d'implémentation initial. Solution propre = vraie palette CSS sombre.
+
+**Checklist senior fix** :
+- [ ] Étape 1 : Identifier toutes les CSS vars utilisées dans Byer (couleurs hardcodées vs vars)
+- [ ] Étape 2 : Définir une palette sombre vraie (--bg, --surface, --text, --text2, etc.) en CSS vars sous `html.byer-dark`
+- [ ] Étape 3 : Remplacer toutes les couleurs hardcodées dans les composants par les CSS vars
+- [ ] Étape 4 : Retirer le filter:invert (root cause de l'inversion stupide)
+- [ ] Étape 5 : Vérifier que la zone du bas (bottom nav bar) prend bien la couleur du body en dark
+- [ ] Étape 6 : Mesure de succès = screenshot dark mode avec textes blancs sur boutons rouges, fond uniforme partout
+
+---
+
 ## 0ter. ✅ AUDIT CHECKLIST SENIOR — état v1.9 (3 mai 2026)
 
 > Audit méthodique des 13 règles ci-dessus appliquées au code v1.9 actuel.

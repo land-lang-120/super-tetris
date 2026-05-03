@@ -34,6 +34,39 @@ function GameOverScreen({ result, profile, onRetry, onContinueWithAd, onHome }) 
 
   // V1 : on autorise 1 seul "Continue via pub" par partie
   const [continueUsed, setContinueUsed] = useStateGO(false);
+  const [shareMsg, setShareMsg] = useStateGO(null);
+
+  /**
+   * Partage social du score via Web Share API (sheet natif Android :
+   * WhatsApp / SMS / Twitter / Facebook / etc.).
+   * Fallback desktop : copie le texte dans le presse-papiers.
+   */
+  function handleShare() {
+    const recordText = newRecord ? "🏆 NOUVEAU RECORD !" : "🎮";
+    const text = recordText
+      + " Je viens de faire " + formatNum(score) + " points sur Super Tetris"
+      + " (niveau " + level + ", " + formatNum(linesTotal) + " lignes) !"
+      + " Bats mon score :";
+    const url = "https://super-tetris.landonjouajosephpino.workers.dev";
+    const shareData = { title: "Super Tetris", text: text, url: url };
+
+    if (navigator.share) {
+      navigator.share(shareData).catch(function () { /* user cancelled */ });
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(text + " " + url).then(function () {
+        setShareMsg("📋 Score copié — colle-le où tu veux !");
+        setTimeout(function () { setShareMsg(null); }, 2500);
+      }).catch(function () {
+        setShareMsg("⚠️ Impossible de copier. Lien : " + url);
+        setTimeout(function () { setShareMsg(null); }, 4000);
+      });
+    } else {
+      setShareMsg("Lien : " + url);
+      setTimeout(function () { setShareMsg(null); }, 4000);
+    }
+
+    if (window.STAudio) window.STAudio.play("button");
+  }
 
   return (
     <div style={SGO.root}>
@@ -86,6 +119,23 @@ function GameOverScreen({ result, profile, onRetry, onContinueWithAd, onHome }) 
           <span style={{ fontSize: 18, marginRight: 8 }}>📺</span>
           <span>Voir une pub pour continuer</span>
         </button>
+      )}
+
+      {/* Bouton "Partager mon score" (Web Share API + fallback clipboard) */}
+      <button
+        style={SGO.shareBtn}
+        onClick={handleShare}
+        aria-label="Partager mon score"
+      >
+        <span style={{ fontSize: 18, marginRight: 8 }}>📤</span>
+        <span>Partager mon score</span>
+      </button>
+
+      {/* Toast de confirmation (visible 2-4s après partage / copie) */}
+      {shareMsg && (
+        <div style={SGO.shareToast} className="pop-in" key={shareMsg}>
+          {shareMsg}
+        </div>
       )}
 
       {/* CTA principal */}
@@ -344,6 +394,41 @@ const SGO = {
     maxWidth: 360,
     fontSize: 16,
     padding: "12px 24px",
+  },
+
+  /* Bouton partage : style "secondary action" (bleu, sous le retry) */
+  shareBtn: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 360,
+    padding: "13px 18px",
+    background: "linear-gradient(180deg, var(--blue), #1e40af)",
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: 800,
+    borderRadius: 14,
+    border: "1.5px solid var(--sky)",
+    marginBottom: 12,
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 0 rgba(0,0,0,0.3)",
+    fontFamily: "'Nunito', sans-serif",
+    cursor: "pointer",
+  },
+  shareToast: {
+    position: "fixed",
+    bottom: 100,
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "rgba(0,0,0,0.85)",
+    color: "#fff",
+    padding: "10px 18px",
+    borderRadius: 10,
+    fontSize: 13,
+    fontWeight: 600,
+    border: "1px solid var(--sky)",
+    zIndex: 200,
+    boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
   },
 };
 

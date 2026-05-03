@@ -40,10 +40,66 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
   const [combo, setCombo]             = useStateGS(0);
   const [floatScore, setFloatScore]   = useStateGS(null); // {x,y,text}
 
-  // ─── Reset particules au mount (clean state entre 2 parties)
+  // ─── Reset particules + VFX boosters au mount (clean state entre 2 parties)
   useEffectGS(() => {
-    if (window.STParticles) window.STParticles.clear();
-    return () => { if (window.STParticles) window.STParticles.clear(); };
+    if (window.STParticles)  window.STParticles.clear();
+    if (window.STBoosterFX)  window.STBoosterFX.clear();
+    return () => {
+      if (window.STParticles)  window.STParticles.clear();
+      if (window.STBoosterFX)  window.STBoosterFX.clear();
+    };
+  }, []);
+
+  // ─── v1.12 BUG-ST-1 : CANVAS PIXEL-PERFECT IMMÉDIAT (pas de flou au démarrage)
+  // Le bug v1.11 : useEffect = async, donc le canvas reste à 1×1 pour le 1er render
+  // → backing store minuscule → upscale énorme → pièces FLOUES les premières secondes.
+  //
+  // Fix v1.12 : utilise React.useLayoutEffect (SYNCHRONE, fire avant peinture browser).
+  // Combiné avec un sizing initial via cv.parentElement.getBoundingClientRect() qui
+  // donne la taille AVANT la 1ère frame de paint. Plus aucun flou au démarrage.
+  React.useLayoutEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+
+    function syncSize() {
+      // On lit la taille du PARENT (canvasWrap qui a flex:1) car le canvas
+      // lui-même peut être à 1×1 au tout 1er paint. Le parent est correct
+      // dès le 1er layout React.
+      const parent = cv.parentElement;
+      if (!parent) return;
+      const rect = parent.getBoundingClientRect();
+      // Le canvas suit aspect-ratio 1/2 et height=100% → on calcule sa taille
+      // réelle d'affichage à partir du parent (max-width contraint).
+      const parentH = rect.height;
+      const parentW = rect.width;
+      // Aspect 1:2 → on prend min(parentH, parentW × 2) pour la hauteur
+      const dispH = Math.min(parentH, parentW * 2);
+      const dispW = dispH / 2;
+      const w = Math.max(1, Math.round(dispW * dpr));
+      const h = Math.max(1, Math.round(dispH * dpr));
+      if (cv.width !== w || cv.height !== h) {
+        cv.width  = w;
+        cv.height = h;
+        setTick(t => t + 1);
+      }
+    }
+
+    // Sync IMMÉDIAT (synchrone, avant 1er paint browser grâce à useLayoutEffect)
+    syncSize();
+
+    // ResizeObserver pour les resize ultérieurs (rotation, redim window)
+    let ro = null;
+    if (typeof ResizeObserver === "function") {
+      ro = new ResizeObserver(syncSize);
+      ro.observe(cv.parentElement || cv);
+    } else {
+      window.addEventListener("resize", syncSize);
+    }
+    return function cleanup() {
+      if (ro) ro.disconnect();
+      else window.removeEventListener("resize", syncSize);
+    };
   }, []);
 
   // ─── v1.8 : MUSIQUE iconique de fond (Korobeiniki)
@@ -111,7 +167,10 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
 
     let startX = 0, startY = 0, startT = 0, lastDy = 0, accDx = 0, accDy = 0;
     let lastTapTime = 0;
-    const SENSITIVITY = 24; // px par cellule de mouvement
+    let lastRotateTime = 0;            // v1.12 BUG-ST-2 : cooldown anti-hold
+    const SENSITIVITY = 24;            // px par cellule de mouvement
+    const DOUBLE_TAP_MS = 180;         // v1.12 BUG-ST-2 : 300→180ms (était trop sensible)
+    const ROTATE_HOLD_GUARD_MS = 280;  // v1.12 BUG-ST-2 : pas de hold dans X ms après rotate
 
     const onStart = (e) => {
       const t = e.touches ? e.touches[0] : e;
@@ -155,16 +214,23 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         setTick(s => s + 1);
         return;
       }
-      // Tap court → rotate
+      // Tap court → rotate (v1.12 : double-tap hold protégé contre faux positifs)
       if (total < 16 && dur < 250) {
         const now = Date.now();
-        if (now - lastTapTime < 300) {
-          // Double-tap : hold
+        const sinceLastRotate = now - lastRotateTime;
+        // Double-tap = HOLD, mais SEULEMENT si :
+        //   1) Le précédent tap était récent (< DOUBLE_TAP_MS = 180ms)
+        //   2) Aucune rotation < ROTATE_HOLD_GUARD_MS (280ms)
+        //   → empêche le hold accidentel quand l'utilisateur tape vite pour rotater
+        if (now - lastTapTime < DOUBLE_TAP_MS && sinceLastRotate > ROTATE_HOLD_GUARD_MS) {
           holdPiece(G);
           fxHold();
           lastTapTime = 0;
         } else {
-          if (rotatePiece(G, 1)) fxRotate();
+          if (rotatePiece(G, 1)) {
+            fxRotate();
+            lastRotateTime = now;
+          }
           lastTapTime = now;
         }
         setTick(s => s + 1);
@@ -196,10 +262,21 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
       // Particules : update systématique, même si freeze (pour FX continu)
       if (window.STParticles) window.STParticles.update(deltaMs);
 
+      // VFX boosters (laser beams, meteor trails, freeze flakes, magnet waves)
+      if (window.STBoosterFX && canvasRef.current) {
+        const cv = canvasRef.current;
+        window.STBoosterFX.update(deltaMs, cv.width, cv.height);
+      }
+
       // Freeze booster : bloque la gravité (mais pas les inputs)
       if (window.STBoosters && window.STBoosters.isFrozen(G)) {
+        // Sync VFX freeze : actif tant que isFrozen
+        if (window.STBoosterFX) window.STBoosterFX.setFreezeActive(true);
         setTick(t => t + 1);
         return;
+      } else if (window.STBoosterFX && window.STBoosterFX.hasFreeze()) {
+        // Freeze terminé : retirer l'overlay VFX
+        window.STBoosterFX.setFreezeActive(false);
       }
 
       G.dropAcc += deltaMs;
@@ -245,12 +322,11 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     // Particules par-dessus le board (clear bursts, explosions, shockwaves)
     if (window.STParticles) window.STParticles.draw(ctx);
 
-    // Voile freeze légèrement bleuté quand le booster est actif
-    if (window.STBoosters && window.STBoosters.isFrozen(G)) {
-      ctx.save();
-      ctx.fillStyle = "rgba(6, 182, 212, 0.12)";
-      ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.restore();
+    // VFX boosters par-dessus tout (laser beams, meteor trails, freeze flakes,
+    // magnet waves). Le voile freeze est géré ici (drawFreeze) — ne pas le
+    // dessiner en double depuis GameScreen.
+    if (window.STBoosterFX) {
+      window.STBoosterFX.draw(ctx, cv.width, cv.height);
     }
   }, [tick, flashRows]);
 
@@ -407,36 +483,70 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
 
     if (id === "freeze") {
+      // ❄️ FREEZE : applique le timer + spawn VFX flakes/crystals/voile
       window.STBoosters.applyFreeze(G);
+      if (cv && window.STBoosterFX) {
+        window.STBoosterFX.spawnFreezeEffects(cv.width, cv.height);
+      }
     } else if (id === "laser") {
-      // ⚡ LASER : jusqu'à 4 lignes effacées + gravity. Particles ROUGES sur
-      // chaque ligne effacée (style Tetroid).
-      const r = window.STBoosters.applyLaser(G);
-      if (cv && window.STParticles && r.lines.length > 0) {
-        r.lines.forEach(function (rowIdx) {
-          const cy = rowIdx * cellSize + cellSize / 2;
-          for (let x = 0; x < window.STCore.COLS; x++) {
-            window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
-          }
-        });
+      // ⚡ LASER : VFX beams qui balaient AVANT que les lignes s'effacent
+      // (delay 80ms × N + 520ms par beam). Pour synchroniser : on spawn
+      // les beams VFX d'abord, puis applique l'effet logique avec un timeout
+      // équivalent à la durée totale du sweep.
+      const targets = [];
+      for (let r = window.STCore.ROWS - 1; r >= 0 && targets.length < 4; r--) {
+        let hasCell = false;
+        for (let c = 0; c < window.STCore.COLS; c++) {
+          if (G.grid[r][c]) { hasCell = true; break; }
+        }
+        if (hasCell) targets.push(r);
       }
+      if (cv && window.STBoosterFX && targets.length > 0) {
+        window.STBoosterFX.spawnLaser(targets, cellSize, cv.width);
+      }
+      // Effet logique appliqué après le sweep VFX (effet visuel d'abord)
+      const sweepTotalMs = (targets.length - 1) * 80 + 320;
+      setTimeout(function () {
+        const result = window.STBoosters.applyLaser(G);
+        if (cv && window.STParticles && result.lines.length > 0) {
+          result.lines.forEach(function (rowIdx) {
+            const cy = rowIdx * cellSize + cellSize / 2;
+            for (let x = 0; x < window.STCore.COLS; x++) {
+              window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
+            }
+          });
+        }
+        setTick(t => t + 1);
+      }, sweepTotalMs);
     } else if (id === "meteor") {
-      // ☄️ METEOR : 10 météores (1 par colonne), 3 cellules détruites verticalement.
-      // Particles ORANGES + shockwaves sur le top de chaque colonne touchée.
-      const r = window.STBoosters.applyMeteor(G);
-      if (cv && window.STParticles) {
-        r.columns.forEach(function (col) {
-          if (col.hits > 0) {
-            const px = col.col * cellSize + cellSize / 2;
-            const py = col.topRow * cellSize + cellSize / 2;
-            window.STParticles.addShockwave(px, py);
-            window.STParticles.addExplosion(px, py, "#ff9000");
-          }
-        });
+      // ☄️ METEOR : 10 météores VFX qui tombent du haut, delay 80ms entre.
+      // L'effet logique est appliqué APRÈS la fin de tous les météores.
+      if (cv && window.STBoosterFX) {
+        window.STBoosterFX.spawnMeteor(window.STCore.COLS, cellSize);
       }
+      // Calcule quand tous les météores auront atteint le bas
+      // (10 météores × 80ms delay + ~1500ms chute moyenne)
+      const meteorTotalMs = window.STCore.COLS * 80 + 1500;
+      setTimeout(function () {
+        const result = window.STBoosters.applyMeteor(G);
+        if (cv && window.STParticles) {
+          result.columns.forEach(function (col) {
+            if (col.hits > 0) {
+              const px = col.col * cellSize + cellSize / 2;
+              const py = col.topRow * cellSize + cellSize / 2;
+              window.STParticles.addShockwave(px, py);
+              window.STParticles.addExplosion(px, py, "#ff9000");
+            }
+          });
+        }
+        if (window.STBoosterFX) window.STBoosterFX.killAllMeteors();
+        setTick(t => t + 1);
+      }, meteorTotalMs);
     } else if (id === "magnet") {
-      // 🧲 MAGNET : gravity multi-passes + clear lignes. Particles VIOLETS
-      // sur le bas (où s'accumulent les blocs) + lignes effacées en bonus.
+      // 🧲 MAGNET : 5 vagues violettes VFX + effet logique immédiat
+      if (cv && window.STBoosterFX) {
+        window.STBoosterFX.spawnMagnetWaves(cv.width, cv.height);
+      }
       const r = window.STBoosters.applyMagnet(G);
       if (cv && window.STParticles && r.cellsMoved > 0) {
         for (let x = 0; x < window.STCore.COLS; x++) {
@@ -505,11 +615,13 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
           >🏠</button>
         </div>
 
-        {/* Canvas centré : prend 100% de la hauteur du wrapper */}
+        {/* Canvas pixel-perfect : width/height attributes settés dynamiquement
+            par le ResizeObserver dans useEffect (cv.width = displayWidth × DPR).
+            On démarre avec 1×1 pour éviter le flash de display 0×0 vide. */}
         <canvas
           ref={canvasRef}
-          width={400}
-          height={800}
+          width={1}
+          height={1}
           style={SGS.canvas}
         />
 

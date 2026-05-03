@@ -36,6 +36,9 @@ const FILES = [
   'src/game/music.js',
   // Boosters (logique fonctionnelle des 4 boosters consommables)
   'src/game/boosters.js',
+  // VFX boosters (laser beams, meteor trails, freeze flakes, magnet waves)
+  // — port FIDÈLE de Tetroid (v1.12 BUG-ST-3)
+  'src/game/booster-fx.js',
 
   // ─── Hooks (window.useXxx exports) ─────────────────────────
   'src/hooks/useGameLoop.js',

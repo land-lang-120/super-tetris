@@ -25,6 +25,7 @@ scripts
 *.zip
 *-keystore-passwords.txt
 icons/icon-source.svg
+# (downloads/*.apk EST volontairement servi en public pour la beta)
 
 # Doc — privée
 CAHIER-CHARGES.md

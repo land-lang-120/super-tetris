@@ -1978,6 +1978,479 @@
 
 /* ─────────────────────────────────────────────────────────── */
 
+/* === src/game/booster-fx.js === */
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════
+   Super Tetris — Booster VFX (port FIDÈLE de Tetroid)
+   ═══════════════════════════════════════════════════════════════════
+   Reproduit les 4 systèmes d'effets visuels Tetroid pour les boosters :
+
+     ⚡ LASER  : flash rouge global + 4 beams horizontaux qui balaient
+                 la grille de gauche à droite, puis effacent les lignes
+     ☄️ METEOR : 10 météorites qui tombent du haut, 1 par colonne, avec
+                 trail orange + shockwave + explosion à l'impact
+     ❄️ FREEZE : voile bleu glacé + 4-7 flocons de neige animés +
+                 14 cristaux de givre qui poussent depuis les bords
+     🧲 MAGNET : 5 vagues violettes concentriques depuis le bas + trails
+                 de blocs qui montent
+
+   Chaque système a 3 fonctions :
+     spawn{Type}Effects(...)  → enregistre l'effet à dessiner
+     update{Type}Effects(dt)  → avance l'animation (1× par frame)
+     draw{Type}Effects(ctx)   → dessine sur le canvas
+
+   API : window.STBoosterFX = {
+     spawnLaser(rows, cellSize, canvasW),
+     spawnMeteorImpact(col, topRow, cellSize),
+     spawnFreezeEffects(canvasW, canvasH),
+     spawnMagnetWaves(canvasW, canvasH),
+     update(dt),
+     draw(ctx, canvasW, canvasH),
+     clear(),
+     hasFreeze() → bool (pour overlay externe synchro freeze)
+   }
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  // ─── État interne ────────────────────────────────────────────
+  var state = {
+    laserFlash: null,
+    // { alpha, decay }
+    laserBeams: [],
+    // [{ y, row, x, life, maxLife, sweepDone, erased }]
+    meteorites: [],
+    // [{ col, x, y, vy, trail, impacted, cellSize }]
+    freezeActive: false,
+    freezeFlakes: [],
+    // flocons de neige
+    freezeCrystals: [],
+    // cristaux de givre sur les bords
+    magnetWaves: [],
+    // [{ r, maxR, life, maxLife, x, y }]
+    magnetTrails: [] // [{ x, y, vy, life, maxLife, color }]
+  };
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ⚡ LASER VFX
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /** Spawn N beams horizontaux (1 par row à effacer) + flash rouge global.
+      Les beams balaient le canvas de gauche à droite avant que les lignes
+      effacent (gives temps au joueur de voir l'effet). */
+  function spawnLaser(rowIndices, cellSize, canvasW) {
+    state.laserFlash = {
+      alpha: 0.85,
+      decay: 0.06
+    };
+    rowIndices.forEach(function (row, i) {
+      // Delay 80ms entre chaque beam pour effet en cascade
+      setTimeout(function () {
+        state.laserBeams.push({
+          y: row * cellSize + cellSize / 2,
+          row: row,
+          x: 0,
+          life: 520,
+          maxLife: 520,
+          sweepDone: false,
+          erased: false,
+          canvasW: canvasW
+        });
+      }, i * 80);
+    });
+  }
+  function updateLaser(dt) {
+    if (state.laserFlash) {
+      state.laserFlash.alpha -= state.laserFlash.decay;
+      if (state.laserFlash.alpha <= 0) state.laserFlash = null;
+    }
+    state.laserBeams = state.laserBeams.filter(function (b) {
+      b.life -= dt;
+      if (!b.sweepDone) {
+        b.x += b.canvasW * 0.055;
+        if (b.x >= b.canvasW) b.sweepDone = true;
+      }
+      return b.life > 0;
+    });
+  }
+  function drawLaser(ctx, canvasW, canvasH) {
+    // Flash rouge global plein écran (atténue rapidement)
+    if (state.laserFlash && state.laserFlash.alpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, state.laserFlash.alpha);
+      ctx.fillStyle = "rgba(255,80,80,0.18)";
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      ctx.restore();
+    }
+    // Beams horizontaux
+    state.laserBeams.forEach(function (b) {
+      var a = b.life / b.maxLife;
+      var cx2 = b.sweepDone ? canvasW : b.x;
+      ctx.save();
+      // Trail rouge sombre (bande 1.2 cell de hauteur)
+      ctx.globalAlpha = a * 0.25;
+      ctx.fillStyle = "rgba(255,40,40,1)";
+      ctx.fillRect(0, b.y - 18, cx2, 36);
+      // Beam principal : gradient horizontal rouge → blanc → rouge
+      var grd = ctx.createLinearGradient(0, b.y, cx2, b.y);
+      grd.addColorStop(0, "rgba(255,80,80,0)");
+      grd.addColorStop(0.1, "#ff4040");
+      grd.addColorStop(0.5, "#ffffff");
+      grd.addColorStop(0.9, "#ff4040");
+      grd.addColorStop(1, "rgba(255,80,80,0)");
+      ctx.globalAlpha = a;
+      ctx.shadowColor = "#ff2020";
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, b.y - 3, cx2, 6);
+      // Trait blanc ultra-fin au centre
+      ctx.globalAlpha = a * 0.9;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, b.y - 1, cx2, 2);
+      // Étincelles à la pointe du sweep
+      if (!b.sweepDone) {
+        for (var i = 0; i < 3; i++) {
+          var sx = b.x * (0.7 + Math.random() * 0.3);
+          var sy = b.y + (Math.random() - 0.5) * 12;
+          ctx.globalAlpha = a * Math.random();
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(sx - 1, sy - 1, 2 + Math.random() * 3, 2);
+        }
+      }
+      ctx.restore();
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ☄️ METEOR VFX
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /** Spawn 1 météore par colonne (10 au total, delay 80ms entre).
+      Tombent du haut (y = -cellSize) jusqu'à la ligne d'impact. */
+  function spawnMeteor(numCols, cellSize) {
+    for (var col = 0; col < numCols; col++) {
+      var delay = col * 80;
+      (function (c, d) {
+        setTimeout(function () {
+          state.meteorites.push({
+            col: c,
+            x: c * cellSize + cellSize / 2,
+            y: -cellSize,
+            vy: cellSize * 0.45,
+            trail: [],
+            impacted: false,
+            cellSize: cellSize
+          });
+        }, d);
+      })(col, delay);
+    }
+  }
+  function updateMeteor(dt) {
+    state.meteorites = state.meteorites.filter(function (m) {
+      if (m.impacted) return false;
+      m.trail.push({
+        x: m.x,
+        y: m.y
+      });
+      if (m.trail.length > 22) m.trail.shift();
+      m.y += m.vy;
+      // Détection d'impact géré côté GameScreen (qui appelle spawnMeteorImpact + retire le météore)
+      // Ici on filtre juste les hors-écran (sécurité)
+      return m.y < 2000;
+    });
+  }
+  function drawMeteor(ctx) {
+    state.meteorites.forEach(function (m) {
+      // Trail orange dégradé (22 segments)
+      m.trail.forEach(function (t, i) {
+        var a = i / m.trail.length;
+        ctx.save();
+        ctx.globalAlpha = a * 0.6;
+        ctx.fillStyle = "#ff6600";
+        ctx.shadowColor = "#ff9000";
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, m.cellSize * 0.22 * a, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+      // Météore lui-même : boule orange brillante avec halo
+      ctx.save();
+      ctx.shadowColor = "#ffd23f";
+      ctx.shadowBlur = 24;
+      var grd = ctx.createRadialGradient(m.x - m.cellSize * 0.1, m.y - m.cellSize * 0.1, 1, m.x, m.y, m.cellSize * 0.5);
+      grd.addColorStop(0, "#fff8c0");
+      grd.addColorStop(0.4, "#ffaa20");
+      grd.addColorStop(1, "#ff4400");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.cellSize * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  /** Force la fin d'un météore (appelé après applyMeteor par GameScreen). */
+  function killAllMeteors() {
+    state.meteorites = [];
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ❄️ FREEZE VFX
+     ═══════════════════════════════════════════════════════════════════ */
+
+  function spawnFreezeEffects(canvasW, canvasH) {
+    state.freezeActive = true;
+    state.freezeFlakes = [];
+    state.freezeCrystals = [];
+    // 4 flocons initiaux à des positions aléatoires
+    for (var i = 0; i < 4; i++) spawnOneFlake(canvasW, canvasH, true);
+    // 14 cristaux : 7 sur le bord gauche, 7 sur le bord droit
+    for (var j = 0; j < 14; j++) {
+      var side = j < 7 ? 0 : canvasW;
+      state.freezeCrystals.push({
+        x: side,
+        y: j % 7 * (canvasH / 7) + Math.random() * 20,
+        size: 0,
+        maxSize: 10 + Math.random() * 16,
+        angle: (side === 0 ? 1 : -1) * (0.15 + Math.random() * 0.6)
+      });
+    }
+  }
+  function spawnOneFlake(canvasW, canvasH, atRandomY) {
+    state.freezeFlakes.push({
+      x: Math.random() * canvasW,
+      y: atRandomY ? Math.random() * canvasH : -8,
+      vy: 0.5 + Math.random() * 1.2,
+      vx: (Math.random() - 0.5) * 0.6,
+      size: 3 + Math.random() * 6,
+      alpha: 0.5 + Math.random() * 0.5,
+      rot: Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 0.04,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleV: 0.02 + Math.random() * 0.03
+    });
+  }
+  function setFreezeActive(active) {
+    state.freezeActive = !!active;
+    if (!active) {
+      state.freezeFlakes = [];
+      state.freezeCrystals = [];
+    }
+  }
+  function updateFreeze(dt, canvasW, canvasH) {
+    if (!state.freezeActive) {
+      state.freezeFlakes = [];
+      state.freezeCrystals = [];
+      return;
+    }
+    // Spawn occasionnel de nouveaux flocons (max 5 simultanés)
+    if (state.freezeFlakes.length < 5 && Math.random() < 0.04) {
+      spawnOneFlake(canvasW, canvasH, false);
+    }
+    state.freezeFlakes = state.freezeFlakes.filter(function (f) {
+      f.wobble += f.wobbleV;
+      f.x += f.vx + Math.sin(f.wobble) * 0.4;
+      f.y += f.vy;
+      f.rot += f.rotV;
+      return f.y < canvasH + 10;
+    });
+    // Cristaux poussent jusqu'à maxSize (animation grow-in)
+    state.freezeCrystals.forEach(function (c) {
+      if (c.size < c.maxSize) c.size += 0.5;
+    });
+  }
+  function drawFreeze(ctx, canvasW, canvasH) {
+    if (!state.freezeActive) return;
+    ctx.save();
+    // Voile bleu glacé en gradient vertical (clair en haut, transparent en bas)
+    var ov = ctx.createLinearGradient(0, 0, 0, canvasH);
+    ov.addColorStop(0, "rgba(168,240,255,0.12)");
+    ov.addColorStop(1, "rgba(100,200,255,0.04)");
+    ctx.fillStyle = ov;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    // Cristaux de givre (lignes étoile-like depuis les bords)
+    state.freezeCrystals.forEach(function (c) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.angle);
+      ctx.shadowColor = "#a8f0ff";
+      ctx.shadowBlur = 10;
+      ctx.strokeStyle = "rgba(180,240,255,0.8)";
+      ctx.lineWidth = 1.5;
+      // Branche principale
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(c.size, 0);
+      ctx.stroke();
+      // 4 sous-branches (style flocon de neige)
+      [0.45, -0.45, 0.7, -0.7].forEach(function (a) {
+        var pos = c.size * (a > 0.5 ? 0.35 : 0.6);
+        ctx.beginPath();
+        ctx.moveTo(pos, 0);
+        ctx.lineTo(pos + Math.cos(a) * c.size * 0.38, Math.sin(a) * c.size * 0.38);
+        ctx.stroke();
+      });
+      ctx.restore();
+    });
+
+    // Flocons de neige (étoiles à 6 branches qui tombent)
+    state.freezeFlakes.forEach(function (f) {
+      ctx.save();
+      ctx.globalAlpha = f.alpha * 0.85;
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.rot);
+      ctx.strokeStyle = "#d0f0ff";
+      ctx.lineWidth = Math.max(0.8, f.size * 0.14);
+      ctx.shadowColor = "#a8f0ff";
+      ctx.shadowBlur = f.size * 1.2;
+      for (var i = 0; i < 6; i++) {
+        ctx.rotate(Math.PI / 3);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, f.size);
+        ctx.stroke();
+        var b = f.size * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(0, b);
+        ctx.lineTo(f.size * 0.28, b + f.size * 0.22);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, b);
+        ctx.lineTo(-f.size * 0.28, b + f.size * 0.22);
+        ctx.stroke();
+      }
+      // Centre du flocon (petit point blanc lumineux)
+      ctx.fillStyle = "rgba(220,245,255,0.9)";
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.arc(0, 0, f.size * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     🧲 MAGNET VFX
+     ═══════════════════════════════════════════════════════════════════ */
+
+  function spawnMagnetWaves(canvasW, canvasH) {
+    // 5 vagues concentriques violettes depuis le bas, delay 120ms entre
+    for (var i = 0; i < 5; i++) {
+      (function (idx) {
+        setTimeout(function () {
+          state.magnetWaves.push({
+            r: 0,
+            maxR: canvasH,
+            life: 900,
+            maxLife: 900,
+            x: canvasW / 2,
+            y: canvasH
+          });
+        }, idx * 120);
+      })(i);
+    }
+  }
+  function spawnMagnetTrail(x, y, color) {
+    state.magnetTrails.push({
+      x: x,
+      y: y,
+      vy: -2,
+      life: 400,
+      maxLife: 400,
+      color: color || "#b020ff"
+    });
+  }
+  function updateMagnet(dt) {
+    state.magnetWaves = state.magnetWaves.filter(function (w) {
+      w.r += 4;
+      w.life -= dt;
+      return w.life > 0;
+    });
+    state.magnetTrails = state.magnetTrails.filter(function (t) {
+      t.y += t.vy;
+      t.vy += 0.1;
+      t.life -= dt;
+      return t.life > 0;
+    });
+  }
+  function drawMagnet(ctx) {
+    // Vagues : demi-cercles violets qui s'étendent depuis le bas
+    state.magnetWaves.forEach(function (w) {
+      var a = w.life / w.maxLife * 0.35;
+      ctx.save();
+      ctx.strokeStyle = "rgba(180,60,255," + a + ")";
+      ctx.lineWidth = 2;
+      ctx.shadowColor = "#aa30ff";
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(w.x, w.y, w.r, Math.PI, 0); // demi-cercle haut (Math.PI à 0)
+      ctx.stroke();
+      ctx.restore();
+    });
+    // Trails : petits blocs colorés qui montent
+    state.magnetTrails.forEach(function (t) {
+      var a = t.life / t.maxLife;
+      ctx.save();
+      ctx.globalAlpha = a * 0.7;
+      ctx.fillStyle = t.color;
+      ctx.shadowColor = "#aa30ff";
+      ctx.shadowBlur = 8;
+      ctx.fillRect(t.x - 2, t.y - 4, 4, 8);
+      ctx.restore();
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     API publique
+     ═══════════════════════════════════════════════════════════════════ */
+
+  function update(dt, canvasW, canvasH) {
+    updateLaser(dt);
+    updateMeteor(dt);
+    updateFreeze(dt, canvasW || 400, canvasH || 800);
+    updateMagnet(dt);
+  }
+  function draw(ctx, canvasW, canvasH) {
+    if (!ctx) return;
+    drawLaser(ctx, canvasW, canvasH);
+    drawMeteor(ctx);
+    drawFreeze(ctx, canvasW, canvasH);
+    drawMagnet(ctx);
+  }
+  function clear() {
+    state.laserFlash = null;
+    state.laserBeams = [];
+    state.meteorites = [];
+    state.freezeActive = false;
+    state.freezeFlakes = [];
+    state.freezeCrystals = [];
+    state.magnetWaves = [];
+    state.magnetTrails = [];
+  }
+  function hasFreeze() {
+    return state.freezeActive;
+  }
+  window.STBoosterFX = {
+    spawnLaser: spawnLaser,
+    spawnMeteor: spawnMeteor,
+    killAllMeteors: killAllMeteors,
+    spawnFreezeEffects: spawnFreezeEffects,
+    setFreezeActive: setFreezeActive,
+    spawnMagnetWaves: spawnMagnetWaves,
+    spawnMagnetTrail: spawnMagnetTrail,
+    update: update,
+    draw: draw,
+    clear: clear,
+    hasFreeze: hasFreeze
+  };
+})();
+
+/* ─────────────────────────────────────────────────────────── */
+
 /* === src/hooks/useGameLoop.js === */
 "use strict";
 
@@ -3636,11 +4109,63 @@ function GameScreen({
   const [combo, setCombo] = useStateGS(0);
   const [floatScore, setFloatScore] = useStateGS(null); // {x,y,text}
 
-  // ─── Reset particules au mount (clean state entre 2 parties)
+  // ─── Reset particules + VFX boosters au mount (clean state entre 2 parties)
   useEffectGS(() => {
     if (window.STParticles) window.STParticles.clear();
+    if (window.STBoosterFX) window.STBoosterFX.clear();
     return () => {
       if (window.STParticles) window.STParticles.clear();
+      if (window.STBoosterFX) window.STBoosterFX.clear();
+    };
+  }, []);
+
+  // ─── v1.12 BUG-ST-1 : CANVAS PIXEL-PERFECT IMMÉDIAT (pas de flou au démarrage)
+  // Le bug v1.11 : useEffect = async, donc le canvas reste à 1×1 pour le 1er render
+  // → backing store minuscule → upscale énorme → pièces FLOUES les premières secondes.
+  //
+  // Fix v1.12 : utilise React.useLayoutEffect (SYNCHRONE, fire avant peinture browser).
+  // Combiné avec un sizing initial via cv.parentElement.getBoundingClientRect() qui
+  // donne la taille AVANT la 1ère frame de paint. Plus aucun flou au démarrage.
+  React.useLayoutEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    function syncSize() {
+      // On lit la taille du PARENT (canvasWrap qui a flex:1) car le canvas
+      // lui-même peut être à 1×1 au tout 1er paint. Le parent est correct
+      // dès le 1er layout React.
+      const parent = cv.parentElement;
+      if (!parent) return;
+      const rect = parent.getBoundingClientRect();
+      // Le canvas suit aspect-ratio 1/2 et height=100% → on calcule sa taille
+      // réelle d'affichage à partir du parent (max-width contraint).
+      const parentH = rect.height;
+      const parentW = rect.width;
+      // Aspect 1:2 → on prend min(parentH, parentW × 2) pour la hauteur
+      const dispH = Math.min(parentH, parentW * 2);
+      const dispW = dispH / 2;
+      const w = Math.max(1, Math.round(dispW * dpr));
+      const h = Math.max(1, Math.round(dispH * dpr));
+      if (cv.width !== w || cv.height !== h) {
+        cv.width = w;
+        cv.height = h;
+        setTick(t => t + 1);
+      }
+    }
+
+    // Sync IMMÉDIAT (synchrone, avant 1er paint browser grâce à useLayoutEffect)
+    syncSize();
+
+    // ResizeObserver pour les resize ultérieurs (rotation, redim window)
+    let ro = null;
+    if (typeof ResizeObserver === "function") {
+      ro = new ResizeObserver(syncSize);
+      ro.observe(cv.parentElement || cv);
+    } else {
+      window.addEventListener("resize", syncSize);
+    }
+    return function cleanup() {
+      if (ro) ro.disconnect();else window.removeEventListener("resize", syncSize);
     };
   }, []);
 
@@ -3733,7 +4258,10 @@ function GameScreen({
       accDx = 0,
       accDy = 0;
     let lastTapTime = 0;
+    let lastRotateTime = 0; // v1.12 BUG-ST-2 : cooldown anti-hold
     const SENSITIVITY = 24; // px par cellule de mouvement
+    const DOUBLE_TAP_MS = 180; // v1.12 BUG-ST-2 : 300→180ms (était trop sensible)
+    const ROTATE_HOLD_GUARD_MS = 280; // v1.12 BUG-ST-2 : pas de hold dans X ms après rotate
 
     const onStart = e => {
       const t = e.touches ? e.touches[0] : e;
@@ -3789,16 +4317,23 @@ function GameScreen({
         setTick(s => s + 1);
         return;
       }
-      // Tap court → rotate
+      // Tap court → rotate (v1.12 : double-tap hold protégé contre faux positifs)
       if (total < 16 && dur < 250) {
         const now = Date.now();
-        if (now - lastTapTime < 300) {
-          // Double-tap : hold
+        const sinceLastRotate = now - lastRotateTime;
+        // Double-tap = HOLD, mais SEULEMENT si :
+        //   1) Le précédent tap était récent (< DOUBLE_TAP_MS = 180ms)
+        //   2) Aucune rotation < ROTATE_HOLD_GUARD_MS (280ms)
+        //   → empêche le hold accidentel quand l'utilisateur tape vite pour rotater
+        if (now - lastTapTime < DOUBLE_TAP_MS && sinceLastRotate > ROTATE_HOLD_GUARD_MS) {
           holdPiece(G);
           fxHold();
           lastTapTime = 0;
         } else {
-          if (rotatePiece(G, 1)) fxRotate();
+          if (rotatePiece(G, 1)) {
+            fxRotate();
+            lastRotateTime = now;
+          }
           lastTapTime = now;
         }
         setTick(s => s + 1);
@@ -3836,10 +4371,21 @@ function GameScreen({
       // Particules : update systématique, même si freeze (pour FX continu)
       if (window.STParticles) window.STParticles.update(deltaMs);
 
+      // VFX boosters (laser beams, meteor trails, freeze flakes, magnet waves)
+      if (window.STBoosterFX && canvasRef.current) {
+        const cv = canvasRef.current;
+        window.STBoosterFX.update(deltaMs, cv.width, cv.height);
+      }
+
       // Freeze booster : bloque la gravité (mais pas les inputs)
       if (window.STBoosters && window.STBoosters.isFrozen(G)) {
+        // Sync VFX freeze : actif tant que isFrozen
+        if (window.STBoosterFX) window.STBoosterFX.setFreezeActive(true);
         setTick(t => t + 1);
         return;
+      } else if (window.STBoosterFX && window.STBoosterFX.hasFreeze()) {
+        // Freeze terminé : retirer l'overlay VFX
+        window.STBoosterFX.setFreezeActive(false);
       }
       G.dropAcc += deltaMs;
       const gravMs = window.STScoring.gravityMs(G.level);
@@ -3882,12 +4428,11 @@ function GameScreen({
     // Particules par-dessus le board (clear bursts, explosions, shockwaves)
     if (window.STParticles) window.STParticles.draw(ctx);
 
-    // Voile freeze légèrement bleuté quand le booster est actif
-    if (window.STBoosters && window.STBoosters.isFrozen(G)) {
-      ctx.save();
-      ctx.fillStyle = "rgba(6, 182, 212, 0.12)";
-      ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.restore();
+    // VFX boosters par-dessus tout (laser beams, meteor trails, freeze flakes,
+    // magnet waves). Le voile freeze est géré ici (drawFreeze) — ne pas le
+    // dessiner en double depuis GameScreen.
+    if (window.STBoosterFX) {
+      window.STBoosterFX.draw(ctx, cv.width, cv.height);
     }
   }, [tick, flashRows]);
 
@@ -4053,36 +4598,73 @@ function GameScreen({
     const cv = canvasRef.current;
     const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
     if (id === "freeze") {
+      // ❄️ FREEZE : applique le timer + spawn VFX flakes/crystals/voile
       window.STBoosters.applyFreeze(G);
+      if (cv && window.STBoosterFX) {
+        window.STBoosterFX.spawnFreezeEffects(cv.width, cv.height);
+      }
     } else if (id === "laser") {
-      // ⚡ LASER : jusqu'à 4 lignes effacées + gravity. Particles ROUGES sur
-      // chaque ligne effacée (style Tetroid).
-      const r = window.STBoosters.applyLaser(G);
-      if (cv && window.STParticles && r.lines.length > 0) {
-        r.lines.forEach(function (rowIdx) {
-          const cy = rowIdx * cellSize + cellSize / 2;
-          for (let x = 0; x < window.STCore.COLS; x++) {
-            window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
+      // ⚡ LASER : VFX beams qui balaient AVANT que les lignes s'effacent
+      // (delay 80ms × N + 520ms par beam). Pour synchroniser : on spawn
+      // les beams VFX d'abord, puis applique l'effet logique avec un timeout
+      // équivalent à la durée totale du sweep.
+      const targets = [];
+      for (let r = window.STCore.ROWS - 1; r >= 0 && targets.length < 4; r--) {
+        let hasCell = false;
+        for (let c = 0; c < window.STCore.COLS; c++) {
+          if (G.grid[r][c]) {
+            hasCell = true;
+            break;
           }
-        });
+        }
+        if (hasCell) targets.push(r);
       }
+      if (cv && window.STBoosterFX && targets.length > 0) {
+        window.STBoosterFX.spawnLaser(targets, cellSize, cv.width);
+      }
+      // Effet logique appliqué après le sweep VFX (effet visuel d'abord)
+      const sweepTotalMs = (targets.length - 1) * 80 + 320;
+      setTimeout(function () {
+        const result = window.STBoosters.applyLaser(G);
+        if (cv && window.STParticles && result.lines.length > 0) {
+          result.lines.forEach(function (rowIdx) {
+            const cy = rowIdx * cellSize + cellSize / 2;
+            for (let x = 0; x < window.STCore.COLS; x++) {
+              window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
+            }
+          });
+        }
+        setTick(t => t + 1);
+      }, sweepTotalMs);
     } else if (id === "meteor") {
-      // ☄️ METEOR : 10 météores (1 par colonne), 3 cellules détruites verticalement.
-      // Particles ORANGES + shockwaves sur le top de chaque colonne touchée.
-      const r = window.STBoosters.applyMeteor(G);
-      if (cv && window.STParticles) {
-        r.columns.forEach(function (col) {
-          if (col.hits > 0) {
-            const px = col.col * cellSize + cellSize / 2;
-            const py = col.topRow * cellSize + cellSize / 2;
-            window.STParticles.addShockwave(px, py);
-            window.STParticles.addExplosion(px, py, "#ff9000");
-          }
-        });
+      // ☄️ METEOR : 10 météores VFX qui tombent du haut, delay 80ms entre.
+      // L'effet logique est appliqué APRÈS la fin de tous les météores.
+      if (cv && window.STBoosterFX) {
+        window.STBoosterFX.spawnMeteor(window.STCore.COLS, cellSize);
       }
+      // Calcule quand tous les météores auront atteint le bas
+      // (10 météores × 80ms delay + ~1500ms chute moyenne)
+      const meteorTotalMs = window.STCore.COLS * 80 + 1500;
+      setTimeout(function () {
+        const result = window.STBoosters.applyMeteor(G);
+        if (cv && window.STParticles) {
+          result.columns.forEach(function (col) {
+            if (col.hits > 0) {
+              const px = col.col * cellSize + cellSize / 2;
+              const py = col.topRow * cellSize + cellSize / 2;
+              window.STParticles.addShockwave(px, py);
+              window.STParticles.addExplosion(px, py, "#ff9000");
+            }
+          });
+        }
+        if (window.STBoosterFX) window.STBoosterFX.killAllMeteors();
+        setTick(t => t + 1);
+      }, meteorTotalMs);
     } else if (id === "magnet") {
-      // 🧲 MAGNET : gravity multi-passes + clear lignes. Particles VIOLETS
-      // sur le bas (où s'accumulent les blocs) + lignes effacées en bonus.
+      // 🧲 MAGNET : 5 vagues violettes VFX + effet logique immédiat
+      if (cv && window.STBoosterFX) {
+        window.STBoosterFX.spawnMagnetWaves(cv.width, cv.height);
+      }
       const r = window.STBoosters.applyMagnet(G);
       if (cv && window.STParticles && r.cellsMoved > 0) {
         for (let x = 0; x < window.STCore.COLS; x++) {
@@ -4136,8 +4718,8 @@ function GameScreen({
     "aria-label": "Accueil"
   }, "\uD83C\uDFE0")), /*#__PURE__*/React.createElement("canvas", {
     ref: canvasRef,
-    width: 400,
-    height: 800,
+    width: 1,
+    height: 1,
     style: SGS.canvas
   }), combo >= 2 && /*#__PURE__*/React.createElement("div", {
     style: SGS.comboBanner,
@@ -4400,6 +4982,44 @@ function GameOverScreen({
 
   // V1 : on autorise 1 seul "Continue via pub" par partie
   const [continueUsed, setContinueUsed] = useStateGO(false);
+  const [shareMsg, setShareMsg] = useStateGO(null);
+
+  /**
+   * Partage social du score via Web Share API (sheet natif Android :
+   * WhatsApp / SMS / Twitter / Facebook / etc.).
+   * Fallback desktop : copie le texte dans le presse-papiers.
+   */
+  function handleShare() {
+    const recordText = newRecord ? "🏆 NOUVEAU RECORD !" : "🎮";
+    const text = recordText + " Je viens de faire " + formatNum(score) + " points sur Super Tetris" + " (niveau " + level + ", " + formatNum(linesTotal) + " lignes) !" + " Bats mon score :";
+    const url = "https://super-tetris.landonjouajosephpino.workers.dev";
+    const shareData = {
+      title: "Super Tetris",
+      text: text,
+      url: url
+    };
+    if (navigator.share) {
+      navigator.share(shareData).catch(function () {/* user cancelled */});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(text + " " + url).then(function () {
+        setShareMsg("📋 Score copié — colle-le où tu veux !");
+        setTimeout(function () {
+          setShareMsg(null);
+        }, 2500);
+      }).catch(function () {
+        setShareMsg("⚠️ Impossible de copier. Lien : " + url);
+        setTimeout(function () {
+          setShareMsg(null);
+        }, 4000);
+      });
+    } else {
+      setShareMsg("Lien : " + url);
+      setTimeout(function () {
+        setShareMsg(null);
+      }, 4000);
+    }
+    if (window.STAudio) window.STAudio.play("button");
+  }
   return /*#__PURE__*/React.createElement("div", {
     style: SGO.root
   }, /*#__PURE__*/React.createElement(Starfield, {
@@ -4465,6 +5085,19 @@ function GameOverScreen({
       marginRight: 8
     }
   }, "\uD83D\uDCFA"), /*#__PURE__*/React.createElement("span", null, "Voir une pub pour continuer")), /*#__PURE__*/React.createElement("button", {
+    style: SGO.shareBtn,
+    onClick: handleShare,
+    "aria-label": "Partager mon score"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 18,
+      marginRight: 8
+    }
+  }, "\uD83D\uDCE4"), /*#__PURE__*/React.createElement("span", null, "Partager mon score")), shareMsg && /*#__PURE__*/React.createElement("div", {
+    style: SGO.shareToast,
+    className: "pop-in",
+    key: shareMsg
+  }, shareMsg), /*#__PURE__*/React.createElement("button", {
     className: "btn-3d",
     style: SGO.retryBtn,
     onClick: onRetry
@@ -4814,6 +5447,40 @@ const SGO = {
     maxWidth: 360,
     fontSize: 16,
     padding: "12px 24px"
+  },
+  /* Bouton partage : style "secondary action" (bleu, sous le retry) */
+  shareBtn: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 360,
+    padding: "13px 18px",
+    background: "linear-gradient(180deg, var(--blue), #1e40af)",
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: 800,
+    borderRadius: 14,
+    border: "1.5px solid var(--sky)",
+    marginBottom: 12,
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 0 rgba(0,0,0,0.3)",
+    fontFamily: "'Nunito', sans-serif",
+    cursor: "pointer"
+  },
+  shareToast: {
+    position: "fixed",
+    bottom: 100,
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "rgba(0,0,0,0.85)",
+    color: "#fff",
+    padding: "10px 18px",
+    borderRadius: 10,
+    fontSize: 13,
+    fontWeight: 600,
+    border: "1px solid var(--sky)",
+    zIndex: 200,
+    boxShadow: "0 6px 20px rgba(0,0,0,0.5)"
   }
 };
 window.GameOverScreen = GameOverScreen;

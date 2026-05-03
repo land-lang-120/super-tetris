@@ -4,7 +4,7 @@
    Cache-first pour les libs et icônes (rarement modifiés)
    ═══════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'super-tetris-v1.9.3';
+const CACHE_NAME = 'super-tetris-v1.12';
 
 const ASSETS = [
   './',
