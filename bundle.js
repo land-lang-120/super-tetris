@@ -1990,6 +1990,10 @@ function HomeScreen({
   }), /*#__PURE__*/React.createElement("div", {
     style: SH.header
   }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      justifySelf: "start"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     style: SH.coinsPill
   }, /*#__PURE__*/React.createElement("span", {
     style: SH.coinIcon
@@ -1999,7 +2003,7 @@ function HomeScreen({
     onClick: () => onNavigate && onNavigate("shop"),
     style: SH.coinPlus,
     "aria-label": "Acheter des pi\xE8ces"
-  }, "+")), /*#__PURE__*/React.createElement("div", {
+  }, "+"))), /*#__PURE__*/React.createElement("div", {
     style: SH.rankBadge
   }, /*#__PURE__*/React.createElement("span", {
     style: SH.rankIcon
@@ -2014,11 +2018,15 @@ function HomeScreen({
     style: SH.rankTitle
   }, rank.title), /*#__PURE__*/React.createElement("span", {
     style: SH.rankXP
-  }, formatNum(xp), " XP"))), /*#__PURE__*/React.createElement("button", {
+  }, formatNum(xp), " XP"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      justifySelf: "end"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
     onClick: () => onNavigate && onNavigate("settings"),
     style: SH.iconBtn,
     "aria-label": "Param\xE8tres"
-  }, "\u2699\uFE0F")), /*#__PURE__*/React.createElement("div", {
+  }, "\u2699\uFE0F"))), /*#__PURE__*/React.createElement("div", {
     style: SH.trophyWrap,
     className: "float"
   }, /*#__PURE__*/React.createElement(Trophy, null), bestScore > 0 && /*#__PURE__*/React.createElement("div", {
@@ -2271,9 +2279,10 @@ const SH = {
     overflow: "hidden"
   },
   header: {
-    display: "flex",
+    /* v1.2 fix : grid 3 colonnes égales = badge RECRUE vraiment centré */
+    display: "grid",
+    gridTemplateColumns: "1fr auto 1fr",
     alignItems: "center",
-    justifyContent: "space-between",
     padding: "calc(env(safe-area-inset-top, 0px) + 12px) 16px 12px",
     gap: 8,
     position: "relative",
@@ -2919,19 +2928,21 @@ const SGS = {
     justifyContent: "center",
     position: "relative",
     minHeight: 0,
-    padding: "8px 12px"
+    padding: "4px 8px"
   },
   canvas: {
     background: "var(--canvas-bg1)",
     borderRadius: 10,
     boxShadow: "0 0 24px rgba(124,58,237,0.5), inset 0 0 0 3px rgba(124,58,237,0.7)",
     touchAction: "none",
-    /* Responsive : prend la place disponible. Aspect ratio 1:2 (10 cols × 20 rows).
-       maxHeight = vh - HUD (~140px) - boosters (~80px) - controls (~50px) - safe areas */
-    height: "min(calc(100vh - 280px), calc((100vw - 24px) * 2))",
+    /* v1.2 fix : canvas vraiment plus grand. Ratio 1:2 (10×20).
+       On part de la HAUTEUR disponible (le facteur limitant sur portrait)
+       et on calcule la largeur depuis ça. Marges minimales pour HUD+boosters. */
+    height: "min(calc(100vh - 260px), calc((100vw - 16px) * 2))",
     width: "auto",
     aspectRatio: "1 / 2",
-    maxWidth: "calc(100vw - 24px)"
+    maxWidth: "calc(100vw - 16px)",
+    minHeight: "400px"
   },
   comboBanner: {
     position: "absolute",

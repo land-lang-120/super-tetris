@@ -450,19 +450,21 @@ const SGS = {
     justifyContent: "center",
     position: "relative",
     minHeight: 0,
-    padding: "8px 12px",
+    padding: "4px 8px",
   },
   canvas: {
     background: "var(--canvas-bg1)",
     borderRadius: 10,
     boxShadow: "0 0 24px rgba(124,58,237,0.5), inset 0 0 0 3px rgba(124,58,237,0.7)",
     touchAction: "none",
-    /* Responsive : prend la place disponible. Aspect ratio 1:2 (10 cols × 20 rows).
-       maxHeight = vh - HUD (~140px) - boosters (~80px) - controls (~50px) - safe areas */
-    height: "min(calc(100vh - 280px), calc((100vw - 24px) * 2))",
+    /* v1.2 fix : canvas vraiment plus grand. Ratio 1:2 (10×20).
+       On part de la HAUTEUR disponible (le facteur limitant sur portrait)
+       et on calcule la largeur depuis ça. Marges minimales pour HUD+boosters. */
+    height: "min(calc(100vh - 260px), calc((100vw - 16px) * 2))",
     width: "auto",
     aspectRatio: "1 / 2",
-    maxWidth: "calc(100vw - 24px)",
+    maxWidth: "calc(100vw - 16px)",
+    minHeight: "400px",
   },
 
   comboBanner: {

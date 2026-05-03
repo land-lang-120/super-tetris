@@ -31,16 +31,18 @@ function HomeScreen({ profile, onNavigate }) {
     <div style={SH.root}>
       <Starfield count={20} />
 
-      {/* ─── Header : coins + rang + paramètres ───────────────────── */}
+      {/* ─── Header : grid 3 cols (coins gauche / RECRUE centre / settings droite) ── */}
       <div style={SH.header}>
-        <div style={SH.coinsPill}>
-          <span style={SH.coinIcon}>👑</span>
-          <span style={SH.coinValue}>{formatNum(coins)}</span>
-          <button
-            onClick={() => onNavigate && onNavigate("shop")}
-            style={SH.coinPlus}
-            aria-label="Acheter des pièces"
-          >+</button>
+        <div style={{ justifySelf: "start" }}>
+          <div style={SH.coinsPill}>
+            <span style={SH.coinIcon}>👑</span>
+            <span style={SH.coinValue}>{formatNum(coins)}</span>
+            <button
+              onClick={() => onNavigate && onNavigate("shop")}
+              style={SH.coinPlus}
+              aria-label="Acheter des pièces"
+            >+</button>
+          </div>
         </div>
 
         <div style={SH.rankBadge}>
@@ -51,11 +53,13 @@ function HomeScreen({ profile, onNavigate }) {
           </div>
         </div>
 
-        <button
-          onClick={() => onNavigate && onNavigate("settings")}
-          style={SH.iconBtn}
-          aria-label="Paramètres"
-        >⚙️</button>
+        <div style={{ justifySelf: "end" }}>
+          <button
+            onClick={() => onNavigate && onNavigate("settings")}
+            style={SH.iconBtn}
+            aria-label="Paramètres"
+          >⚙️</button>
+        </div>
       </div>
 
       {/* ─── Trophée 3D + meilleur score ──────────────────────────── */}
@@ -241,9 +245,10 @@ const SH = {
   },
 
   header: {
-    display: "flex",
+    /* v1.2 fix : grid 3 colonnes égales = badge RECRUE vraiment centré */
+    display: "grid",
+    gridTemplateColumns: "1fr auto 1fr",
     alignItems: "center",
-    justifyContent: "space-between",
     padding: "calc(env(safe-area-inset-top, 0px) + 12px) 16px 12px",
     gap: 8,
     position: "relative",
