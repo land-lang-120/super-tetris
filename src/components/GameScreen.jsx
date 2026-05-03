@@ -31,6 +31,12 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     gameRef.current = createInitialGameState();
   }
 
+  // ─── Reset particules au mount (clean state entre 2 parties)
+  useEffectGS(() => {
+    if (window.STParticles) window.STParticles.clear();
+    return () => { if (window.STParticles) window.STParticles.clear(); };
+  }, []);
+
   // ─── State UI (re-renders OK)
   const [tick, setTick]               = useStateGS(0);  // counter pour forcer re-render
   const [paused, setPaused]           = useStateGS(false);
@@ -46,16 +52,26 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
       if (paused && e.code !== "Escape") return;
 
       switch (e.code) {
-        case "ArrowLeft":  movePiece(G, -1, 0); break;
-        case "ArrowRight": movePiece(G,  1, 0); break;
-        case "ArrowDown":  if (movePiece(G, 0, 1)) { G.score += window.STScoring.softDropScore(); } break;
+        case "ArrowLeft":
+          if (movePiece(G, -1, 0)) { fxMove(); }
+          break;
+        case "ArrowRight":
+          if (movePiece(G,  1, 0)) { fxMove(); }
+          break;
+        case "ArrowDown":
+          if (movePiece(G, 0, 1)) { G.score += window.STScoring.softDropScore(); fxMove(); }
+          break;
         case "ArrowUp":
-        case "KeyX":       rotatePiece(G,  1); break;
-        case "KeyZ":       rotatePiece(G, -1); break;
-        case "Space":      hardDrop(G); break;
+        case "KeyX":
+          if (rotatePiece(G,  1)) { fxRotate(); }
+          break;
+        case "KeyZ":
+          if (rotatePiece(G, -1)) { fxRotate(); }
+          break;
+        case "Space":      hardDrop(G); fxHardDrop(); break;
         case "ShiftLeft":
         case "ShiftRight":
-        case "KeyC":       holdPiece(G); break;
+        case "KeyC":       holdPiece(G); fxHold(); break;
         case "Escape":     setPaused(p => !p); break;
         default: return;
       }
@@ -88,13 +104,13 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
 
       // Mouvement horizontal
       while (Math.abs(dx - accDx) >= SENSITIVITY) {
-        if (dx > accDx) { movePiece(G,  1, 0); accDx += SENSITIVITY; }
-        else            { movePiece(G, -1, 0); accDx -= SENSITIVITY; }
+        if (dx > accDx) { if (movePiece(G,  1, 0)) fxMove(); accDx += SENSITIVITY; }
+        else            { if (movePiece(G, -1, 0)) fxMove(); accDx -= SENSITIVITY; }
       }
       // Soft drop vers le bas
       if (dy - accDy >= SENSITIVITY) {
         while (dy - accDy >= SENSITIVITY) {
-          if (movePiece(G, 0, 1)) G.score += window.STScoring.softDropScore();
+          if (movePiece(G, 0, 1)) { G.score += window.STScoring.softDropScore(); fxMove(); }
           accDy += SENSITIVITY;
         }
       }
@@ -112,6 +128,7 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
       // Swipe vertical rapide vers le bas → hard drop
       if (dy > 80 && Math.abs(dy) > Math.abs(dx) * 1.5 && dur < 400) {
         hardDrop(G);
+        fxHardDrop();
         setTick(s => s + 1);
         return;
       }
@@ -121,9 +138,10 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         if (now - lastTapTime < 300) {
           // Double-tap : hold
           holdPiece(G);
+          fxHold();
           lastTapTime = 0;
         } else {
-          rotatePiece(G, 1);
+          if (rotatePiece(G, 1)) fxRotate();
           lastTapTime = now;
         }
         setTick(s => s + 1);
@@ -144,14 +162,24 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     };
   }, [paused]);
 
-  // ─── Game loop : gravité automatique
+  // ─── Game loop : gravité automatique + particles update
   window.useGameLoop({
     active: !paused,
     onTick: (deltaMs) => {
       const G = gameRef.current;
       if (!G || G.gameOver) return;
       G.elapsedMs   += deltaMs;
-      G.dropAcc     += deltaMs;
+
+      // Particules : update systématique, même si freeze (pour FX continu)
+      if (window.STParticles) window.STParticles.update(deltaMs);
+
+      // Freeze booster : bloque la gravité (mais pas les inputs)
+      if (window.STBoosters && window.STBoosters.isFrozen(G)) {
+        setTick(t => t + 1);
+        return;
+      }
+
+      G.dropAcc += deltaMs;
       const gravMs = window.STScoring.gravityMs(G.level);
       while (G.dropAcc >= gravMs) {
         G.dropAcc -= gravMs;
@@ -190,6 +218,17 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
       rows: window.STCore.ROWS,
       showGhost: true,
     });
+
+    // Particules par-dessus le board (clear bursts, explosions, shockwaves)
+    if (window.STParticles) window.STParticles.draw(ctx);
+
+    // Voile freeze légèrement bleuté quand le booster est actif
+    if (window.STBoosters && window.STBoosters.isFrozen(G)) {
+      ctx.save();
+      ctx.fillStyle = "rgba(6, 182, 212, 0.12)";
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.restore();
+    }
   }, [tick, flashRows]);
 
   // ─── Game over handler
@@ -260,6 +299,10 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     const tspin = window.STCore.isTSpin(G.grid, G.piece, G.lastMoveWasRotation);
     G.grid = window.STCore.lock(G.grid, G.piece, G.piece.x, G.piece.y);
 
+    // FX : lock (haptic + sound)
+    fxLock();
+
+    const prevLevel = G.level;
     const cleared = window.STCore.clearLines(G.grid);
     G.grid = cleared.grid;
     G.linesTotal += cleared.count;
@@ -279,14 +322,16 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     // Combo state pour UI
     setCombo(G.combo);
 
-    // Flash effect sur les lignes effacées
+    // Flash effect + FX sur les lignes effacées
     if (cleared.lines.length) {
       setFlashRows(cleared.lines);
       setTimeout(() => setFlashRows([]), 200);
+      fxLineClear(cleared.count);
     }
 
-    // Niveau auto basé sur les lignes
+    // Niveau auto basé sur les lignes + FX si level up
     G.level = window.STScoring.levelFromLines(G.linesTotal);
+    if (G.level > prevLevel) fxLevelUp();
 
     // Spawn nouvelle pièce
     const nextName = window.STBag.drawNext(G);
@@ -297,7 +342,88 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     // Game over check
     if (window.STCore.isGameOver(G.grid, G.piece)) {
       G.gameOver = true;
+      fxGameOver();
     }
+  }
+
+  /* ─── FX helpers (audio + haptic + particles) ─────────────────
+     Tous wrappés en try/catch implicite : si le module n'est pas
+     chargé (ex: SSR ou fail du build), no-op silencieux.            */
+  function fxMove()     { if (window.STAudio)   window.STAudio.play("move");
+                          if (window.STHaptics) window.STHaptics.vibePattern("move"); }
+  function fxRotate()   { if (window.STAudio)   window.STAudio.play("rotate");
+                          if (window.STHaptics) window.STHaptics.vibePattern("rotate"); }
+  function fxLock()     { if (window.STAudio)   window.STAudio.play("lock");
+                          if (window.STHaptics) window.STHaptics.vibePattern("lock"); }
+  function fxHardDrop() { if (window.STAudio)   window.STAudio.play("hardDrop");
+                          if (window.STHaptics) window.STHaptics.vibePattern("hardDrop"); }
+  function fxHold()     { if (window.STAudio)   window.STAudio.play("hold"); }
+  function fxLevelUp()  { if (window.STAudio)   window.STAudio.play("levelUp");
+                          if (window.STHaptics) window.STHaptics.vibePattern("levelUp"); }
+  function fxGameOver() { if (window.STAudio)   window.STAudio.play("gameOver");
+                          if (window.STHaptics) window.STHaptics.vibePattern("gameOver"); }
+  function fxLineClear(count) {
+    const cv = canvasRef.current;
+    if (cv && window.STParticles) {
+      window.STParticles.addLineClearBurst(cv.width, cv.height, count);
+    }
+    if (window.STAudio) {
+      const key = count >= 4 ? "tetris" : "line" + count;
+      window.STAudio.play(key);
+    }
+    if (window.STHaptics) {
+      window.STHaptics.vibePattern("line" + Math.min(4, count));
+    }
+  }
+
+  /** Active un booster acheté (clic sur un BoosterButton). */
+  function activateBooster(id) {
+    const G = gameRef.current;
+    if (!G || G.gameOver || paused || !window.STBoosters) return;
+    const cv = canvasRef.current;
+    const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
+
+    if (id === "freeze") {
+      window.STBoosters.applyFreeze(G);
+      if (window.STAudio)   window.STAudio.play("booster");
+      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    } else if (id === "laser") {
+      const r = window.STBoosters.applyLaser(G);
+      if (cv && r.line >= 0 && window.STParticles) {
+        const cy = r.line * cellSize + cellSize / 2;
+        for (let x = 0; x < window.STCore.COLS; x++) {
+          window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#facc15");
+        }
+      }
+      if (window.STAudio)   window.STAudio.play("booster");
+      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    } else if (id === "meteor") {
+      const r = window.STBoosters.applyMeteor(G, 5);
+      if (cv && window.STParticles) {
+        r.cells.forEach(function (cell) {
+          const px = cell.x * cellSize + cellSize / 2;
+          const py = cell.y * cellSize + cellSize / 2;
+          window.STParticles.addShockwave(px, py);
+          window.STParticles.addExplosion(px, py, "#f97316");
+        });
+      }
+      if (window.STAudio)   window.STAudio.play("booster");
+      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    } else if (id === "magnet") {
+      const r = window.STBoosters.applyMagnet(G);
+      if (cv && window.STParticles && r.cellsMoved > 0) {
+        for (let x = 0; x < window.STCore.COLS; x++) {
+          window.STParticles.addExplosion(
+            x * cellSize + cellSize / 2,
+            cv.height - cellSize,
+            "#ec4899"
+          );
+        }
+      }
+      if (window.STAudio)   window.STAudio.play("booster");
+      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    }
+    setTick(t => t + 1);
   }
 
   const G = gameRef.current;
@@ -351,13 +477,13 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         )}
       </div>
 
-      {/* Boosters */}
+      {/* Boosters — onUse : applique l'effet ET décrémente l'inventaire */}
       {window.BoosterButtons && (
         <window.BoosterButtons
           inventory={(profile && profile.boosters) || {}}
           cooldowns={{}}
           onUse={(id) => {
-            // V1 : on consomme juste le booster (logique full V2)
+            activateBooster(id);
             if (typeof onProfileChange === "function") {
               onProfileChange(p => ({
                 ...p,

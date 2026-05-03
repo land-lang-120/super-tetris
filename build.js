@@ -28,6 +28,12 @@ const FILES = [
   'src/game/core.js',
   'src/game/scoring.js',
   'src/game/render.js',
+  // FX modules (audio + haptics + particles) — Batch 7 (Tetroid parity)
+  'src/game/audio.js',
+  'src/game/haptics.js',
+  'src/game/particles.js',
+  // Boosters (logique fonctionnelle des 4 boosters consommables)
+  'src/game/boosters.js',
 
   // ─── Hooks (window.useXxx exports) ─────────────────────────
   'src/hooks/useGameLoop.js',

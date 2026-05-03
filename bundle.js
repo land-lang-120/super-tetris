@@ -869,6 +869,716 @@
 
 /* ─────────────────────────────────────────────────────────── */
 
+/* === src/game/audio.js === */
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════
+   Super Tetris — Audio (Web Audio API)
+   ═══════════════════════════════════════════════════════════════════
+   Effets sonores synthétiques (pas de fichiers .mp3 à charger) :
+     - Tons synthétisés via OscillatorNode
+     - Différents pour move, rotate, lock, clear, tetris, levelUp,
+       gameOver, booster, hardDrop, hold
+
+   AudioContext est lazy-initialisé (au 1er bruit, pas au boot)
+   pour éviter "AudioContext suspended" sur navigateur mobile.
+   Auto-resume au 1er user-gesture.
+
+   Respecte st_settings.sound (si false → no-op).
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  var ctx = null;
+  var initialized = false;
+  function getCtx() {
+    if (ctx) return ctx;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+      initialized = true;
+      // Resume on first user gesture (mobile autoplay policy)
+      var resume = function () {
+        if (ctx.state === "suspended") ctx.resume().catch(function () {});
+      };
+      document.addEventListener("touchstart", resume, {
+        once: true,
+        passive: true
+      });
+      document.addEventListener("click", resume, {
+        once: true
+      });
+      document.addEventListener("keydown", resume, {
+        once: true
+      });
+      return ctx;
+    } catch (_) {
+      return null;
+    }
+  }
+  function soundEnabled() {
+    try {
+      var raw = localStorage.getItem("st_settings");
+      if (!raw) return true;
+      var s = JSON.parse(raw);
+      return s && s.sound !== false;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /**
+   * Joue un tone basique avec enveloppe ADSR simple.
+   * @param freq        fréquence en Hz
+   * @param duration    durée en secondes
+   * @param type        oscillator type (sine, square, sawtooth, triangle)
+   * @param volume      0..1
+   */
+  function tone(freq, duration, type, volume) {
+    if (!soundEnabled()) return;
+    var c = getCtx();
+    if (!c) return;
+    try {
+      var osc = c.createOscillator();
+      var gain = c.createGain();
+      osc.type = type || "sine";
+      osc.frequency.value = freq;
+      gain.gain.value = 0;
+      osc.connect(gain);
+      gain.connect(c.destination);
+      var now = c.currentTime;
+      var v = typeof volume === "number" ? volume : 0.15;
+      // attack
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(v, now + 0.01);
+      // decay+sustain+release combinés
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.start(now);
+      osc.stop(now + duration + 0.05);
+    } catch (_) {}
+  }
+
+  /** Joue plusieurs tones séquentiels (mélodies courtes). */
+  function sequence(notes) {
+    var c = getCtx();
+    if (!c) return;
+    var t = 0;
+    notes.forEach(function (n) {
+      setTimeout(function () {
+        tone(n.freq, n.dur || 0.1, n.type || "sine", n.vol || 0.15);
+      }, t);
+      t += n.gap || 80;
+    });
+  }
+
+  // ─── Library d'effets sonores ────────────────────────────────
+  var SFX = {
+    move: function () {
+      tone(240, 0.04, "square", 0.06);
+    },
+    rotate: function () {
+      tone(360, 0.05, "triangle", 0.08);
+    },
+    lock: function () {
+      tone(180, 0.08, "sine", 0.12);
+    },
+    hardDrop: function () {
+      tone(120, 0.12, "sawtooth", 0.14);
+    },
+    hold: function () {
+      tone(440, 0.06, "triangle", 0.08);
+    },
+    line1: function () {
+      sequence([{
+        freq: 523,
+        dur: 0.1
+      }, {
+        freq: 659,
+        dur: 0.1
+      }]);
+    },
+    line2: function () {
+      sequence([{
+        freq: 523,
+        dur: 0.1
+      }, {
+        freq: 659,
+        dur: 0.1
+      }, {
+        freq: 784,
+        dur: 0.1
+      }]);
+    },
+    line3: function () {
+      sequence([{
+        freq: 523,
+        dur: 0.08
+      }, {
+        freq: 659,
+        dur: 0.08
+      }, {
+        freq: 784,
+        dur: 0.08
+      }, {
+        freq: 1047,
+        dur: 0.12
+      }]);
+    },
+    tetris: function () {
+      sequence([{
+        freq: 523,
+        dur: 0.08,
+        type: "square"
+      }, {
+        freq: 659,
+        dur: 0.08,
+        type: "square"
+      }, {
+        freq: 784,
+        dur: 0.08,
+        type: "square"
+      }, {
+        freq: 1047,
+        dur: 0.16,
+        type: "square",
+        vol: 0.18
+      }]);
+    },
+    levelUp: function () {
+      sequence([{
+        freq: 523,
+        dur: 0.1
+      }, {
+        freq: 659,
+        dur: 0.1
+      }, {
+        freq: 784,
+        dur: 0.1
+      }, {
+        freq: 1047,
+        dur: 0.1
+      }, {
+        freq: 1319,
+        dur: 0.2,
+        vol: 0.18
+      }]);
+    },
+    booster: function () {
+      tone(800, 0.15, "triangle", 0.12);
+    },
+    gameOver: function () {
+      sequence([{
+        freq: 392,
+        dur: 0.15
+      }, {
+        freq: 330,
+        dur: 0.15
+      }, {
+        freq: 262,
+        dur: 0.3,
+        vol: 0.18
+      }]);
+    },
+    win: function () {
+      sequence([{
+        freq: 523,
+        dur: 0.1
+      }, {
+        freq: 659,
+        dur: 0.1
+      }, {
+        freq: 784,
+        dur: 0.1
+      }, {
+        freq: 1047,
+        dur: 0.15
+      }, {
+        freq: 784,
+        dur: 0.1
+      }, {
+        freq: 1047,
+        dur: 0.25,
+        vol: 0.2
+      }]);
+    },
+    button: function () {
+      tone(660, 0.05, "sine", 0.08);
+    },
+    coin: function () {
+      tone(880, 0.08, "triangle", 0.10);
+    }
+  };
+  function play(name) {
+    var fn = SFX[name];
+    if (fn) fn();
+  }
+  window.STAudio = {
+    play: play,
+    SFX: SFX,
+    tone: tone,
+    sequence: sequence
+  };
+})();
+
+/* ─────────────────────────────────────────────────────────── */
+
+/* === src/game/haptics.js === */
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════
+   Super Tetris — Haptics (vibrations)
+   ═══════════════════════════════════════════════════════════════════
+   Wrapper léger autour de navigator.vibrate() avec patterns prédéfinis.
+   Sur iOS : pas supporté → fallback silencieux (try/catch).
+   Sur Android : tous les patterns marchent.
+
+   Respect du setting utilisateur : si st_settings.vibro === false → no-op.
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  var HAPTICS = {
+    move: [6],
+    rotate: [10],
+    lock: [18],
+    hardDrop: [12, 40, 40],
+    line1: [40, 30, 40],
+    line2: [40, 20, 40, 20, 60],
+    line3: [40, 15, 40, 15, 40, 15, 80],
+    line4: [60, 10, 60, 10, 60, 10, 100],
+    booster: [20, 30, 60, 30, 20],
+    levelUp: [30, 20, 50, 20, 80, 20, 120],
+    gameOver: [80, 40, 60, 40, 40, 40, 20]
+  };
+  function vibroEnabled() {
+    try {
+      var raw = localStorage.getItem("st_settings");
+      if (!raw) return true; // default ON
+      var s = JSON.parse(raw);
+      return s && s.vibro !== false;
+    } catch (_) {
+      return true;
+    }
+  }
+  function vibe(pattern) {
+    try {
+      if (!navigator.vibrate) return;
+      if (!vibroEnabled()) return;
+      navigator.vibrate(pattern);
+    } catch (_) {}
+  }
+
+  // API named (vibePattern("lock"))
+  function vibePattern(name) {
+    var p = HAPTICS[name];
+    if (p) vibe(p);
+  }
+  window.STHaptics = {
+    PATTERNS: HAPTICS,
+    vibe: vibe,
+    vibePattern: vibePattern
+  };
+})();
+
+/* ─────────────────────────────────────────────────────────── */
+
+/* === src/game/particles.js === */
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════
+   Super Tetris — Particles system
+   ═══════════════════════════════════════════════════════════════════
+   Système d'effets visuels :
+     - Particules au clear de ligne (24-96 particules color-mix)
+     - Explosion burst (40 particules à un point)
+     - Shockwaves (anneaux) pour les meteor boosters
+     - Embers (braises) qui flottent au booster meteor
+
+   État partagé via une Singleton STParticles. Le rendu canvas est
+   géré dans render.js (fonction drawOverlay) qui appelle drawXxx ici.
+
+   Update(dt) avancement temporel + filtre des particules mortes.
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  // Couleurs des pièces pour les particules colorées
+  var PARTICLE_COLORS = ["#00d4e0", "#ffd23f", "#a855f7", "#22c55e", "#ef4444", "#2563eb", "#f97316"];
+
+  // État interne (mutable)
+  var state = {
+    particles: [],
+    shockwaves: [],
+    embers: []
+  };
+
+  /** Ajoute des particules quand des lignes sont effacées (24/ligne). */
+  function addLineClearBurst(canvasW, canvasH, lineCount) {
+    var n = (lineCount || 1) * 24;
+    for (var i = 0; i < n; i++) {
+      state.particles.push({
+        x: Math.random() * canvasW,
+        y: Math.random() * canvasH * 0.7 + canvasH * 0.15,
+        vx: (Math.random() - 0.5) * 8,
+        vy: (Math.random() - 0.5) * 8,
+        life: 700 + Math.random() * 500,
+        maxLife: 1200,
+        color: PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)],
+        size: 3 + Math.random() * 5
+      });
+    }
+  }
+
+  /** Explosion ponctuelle (booster meteor / impact). */
+  function addExplosion(x, y, color) {
+    var col = color || PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)];
+    for (var i = 0; i < 40; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var sp = 3 + Math.random() * 10;
+      state.particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: 500 + Math.random() * 500,
+        maxLife: 1000,
+        color: col,
+        size: 2 + Math.random() * 5
+      });
+    }
+  }
+
+  /** Anneau d'onde de choc (visualise un boost laser/meteor). */
+  function addShockwave(x, y) {
+    state.shockwaves.push({
+      x: x,
+      y: y,
+      r: 0,
+      life: 500,
+      maxLife: 500
+    });
+    for (var i = 0; i < 8; i++) {
+      var a = -Math.PI + Math.random() * Math.PI;
+      var sp = 3 + Math.random() * 7;
+      state.embers.push({
+        x: x,
+        y: y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 4,
+        life: 600 + Math.random() * 400,
+        maxLife: 1000,
+        size: 2 + Math.random() * 4,
+        color: "#ffd740"
+      });
+    }
+  }
+
+  /** Update tous les systèmes (appelé chaque frame). */
+  function update(dt) {
+    var g = 0.2; // gravité
+    state.particles = state.particles.filter(function (p) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += g;
+      p.life -= dt;
+      return p.life > 0;
+    });
+    state.shockwaves = state.shockwaves.filter(function (s) {
+      s.r += 6;
+      s.life -= dt;
+      return s.life > 0;
+    });
+    state.embers = state.embers.filter(function (e) {
+      e.x += e.vx;
+      e.y += e.vy;
+      e.vy += 0.15;
+      e.life -= dt;
+      return e.life > 0;
+    });
+  }
+
+  /** Dessine toutes les particules sur le contexte canvas. */
+  function draw(ctx) {
+    if (!ctx) return;
+    // Particules basiques (carrés colorés)
+    state.particles.forEach(function (p) {
+      var a = p.life / p.maxLife;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 8;
+      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      ctx.restore();
+    });
+
+    // Shockwaves (anneaux)
+    state.shockwaves.forEach(function (s) {
+      var a = s.life / s.maxLife;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255," + Math.floor(180 * a) + ",0," + a * 0.8 + ")";
+      ctx.lineWidth = 3 * a;
+      ctx.shadowColor = "#ff8c00";
+      ctx.shadowBlur = 20 * a;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.stroke();
+      if (s.r > 4) {
+        ctx.strokeStyle = "rgba(255,255,255," + a * 0.5 + ")";
+        ctx.lineWidth = 1.5 * a;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r * 0.6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+
+    // Embers (braises)
+    state.embers.forEach(function (e) {
+      var a = e.life / e.maxLife;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.fillStyle = e.color;
+      ctx.shadowColor = e.color;
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.size * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  /** Reset complet (à appeler entre 2 parties). */
+  function clear() {
+    state.particles = [];
+    state.shockwaves = [];
+    state.embers = [];
+  }
+  function count() {
+    return state.particles.length + state.shockwaves.length + state.embers.length;
+  }
+  window.STParticles = {
+    addLineClearBurst: addLineClearBurst,
+    addExplosion: addExplosion,
+    addShockwave: addShockwave,
+    update: update,
+    draw: draw,
+    clear: clear,
+    count: count
+  };
+})();
+
+/* ─────────────────────────────────────────────────────────── */
+
+/* === src/game/boosters.js === */
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════
+   Super Tetris — Boosters logic (4 boosters jouables)
+   ═══════════════════════════════════════════════════════════════════
+   Logique fonctionnelle des 4 boosters consommables. Toutes les
+   fonctions PRENNENT et RETOURNENT un nouveau game state (immutables
+   pour faciliter intégration React + undo éventuel).
+
+   Boosters :
+     ❄️ FREEZE  : suspend la gravité pendant 3000ms (3s)
+                  → met G.freezeUntil = now + 3000
+                  → le tick gameLoop respecte ce flag (gravité = 0)
+
+     ⚡ LASER   : détruit la ligne la plus basse non vide
+                  → trouve la ligne, la vide, ne la décale pas (juste vide)
+                  → ajoute particles + sound + haptic
+
+     ☄️ METEOR  : détruit 5 cellules aléatoires non vides
+                  → choisit 5 positions occupées au hasard
+                  → particles d'impact à chacune
+                  → shockwave central
+
+     🧲 MAGNET  : attire les blocs vers le bas (gravity sweep)
+                  → pour chaque colonne, fait tomber les blocs en haut
+                  → ferme les "trous" laissés par des poses imparfaites
+                  → gros bonus stratégique pour rétablir une situation
+                    catastrophique
+
+   Cooldowns par défaut : 5s entre 2 utilisations du même booster.
+
+   Constantes exposées : COOLDOWNS, DURATIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  // ─── Configuration ────────────────────────────────────────────
+  var COOLDOWNS = {
+    freeze: 5000,
+    laser: 5000,
+    meteor: 5000,
+    magnet: 8000
+  };
+  var DURATIONS = {
+    freeze: 3000 // ms d'immobilisation gravité
+  };
+
+  /**
+   * FREEZE — suspend la gravité pendant DURATIONS.freeze ms.
+   * Mute G.freezeUntil. Le game loop check ce flag.
+   */
+  function applyFreeze(G) {
+    if (!G) return G;
+    var now = Date.now();
+    G.freezeUntil = now + DURATIONS.freeze;
+    return G;
+  }
+
+  /** Renvoie true si la gravité doit être suspendue MAINTENANT. */
+  function isFrozen(G) {
+    if (!G || !G.freezeUntil) return false;
+    return Date.now() < G.freezeUntil;
+  }
+
+  /**
+   * LASER — détruit la ligne la plus basse occupée (vidée, pas supprimée).
+   * Retourne { grid, line: index }. Si pas de ligne, line = -1.
+   */
+  function applyLaser(G) {
+    if (!G || !G.grid) return {
+      grid: G && G.grid,
+      line: -1
+    };
+    var grid = window.STCore.cloneGrid(G.grid);
+    var rows = grid.length;
+    var cols = (grid[0] || []).length;
+
+    // Cherche la ligne la plus basse avec au moins une cellule
+    var targetLine = -1;
+    for (var r = rows - 1; r >= 0; r--) {
+      var hasCell = false;
+      for (var c = 0; c < cols; c++) {
+        if (grid[r][c]) {
+          hasCell = true;
+          break;
+        }
+      }
+      if (hasCell) {
+        targetLine = r;
+        break;
+      }
+    }
+    if (targetLine >= 0) {
+      for (var x = 0; x < cols; x++) grid[targetLine][x] = 0;
+      G.grid = grid;
+    }
+    return {
+      grid: G.grid,
+      line: targetLine
+    };
+  }
+
+  /**
+   * METEOR — détruit 5 cellules aléatoires occupées.
+   * Retourne { grid, cells: [{x,y}] }.
+   */
+  function applyMeteor(G, count) {
+    count = count || 5;
+    if (!G || !G.grid) return {
+      grid: G && G.grid,
+      cells: []
+    };
+    var grid = window.STCore.cloneGrid(G.grid);
+    var rows = grid.length;
+    var cols = (grid[0] || []).length;
+
+    // Récupère toutes les cellules occupées
+    var occupied = [];
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        if (grid[r][c]) occupied.push({
+          x: c,
+          y: r
+        });
+      }
+    }
+    if (occupied.length === 0) return {
+      grid: G.grid,
+      cells: []
+    };
+
+    // Shuffle Fisher-Yates et prend les `count` premières
+    for (var i = occupied.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = occupied[i];
+      occupied[i] = occupied[j];
+      occupied[j] = tmp;
+    }
+    var hits = occupied.slice(0, Math.min(count, occupied.length));
+    hits.forEach(function (cell) {
+      grid[cell.y][cell.x] = 0;
+    });
+    G.grid = grid;
+    return {
+      grid: G.grid,
+      cells: hits
+    };
+  }
+
+  /**
+   * MAGNET — fait tomber tous les blocs vers le bas, colonne par colonne,
+   * pour combler les trous. Très utile sur des grids "gruyère".
+   * Retourne { grid, cellsMoved }.
+   */
+  function applyMagnet(G) {
+    if (!G || !G.grid) return {
+      grid: G && G.grid,
+      cellsMoved: 0
+    };
+    var grid = window.STCore.cloneGrid(G.grid);
+    var rows = grid.length;
+    var cols = (grid[0] || []).length;
+    var moved = 0;
+    for (var c = 0; c < cols; c++) {
+      // Récupère toutes les cellules non vides de cette colonne, en partant du bas
+      var stack = [];
+      for (var r = rows - 1; r >= 0; r--) {
+        if (grid[r][c]) {
+          stack.push(grid[r][c]);
+          grid[r][c] = 0;
+        }
+      }
+      // Réécrit en partant du bas
+      for (var k = 0; k < stack.length; k++) {
+        var newR = rows - 1 - k;
+        var oldVal = grid[newR][c];
+        if (!oldVal) moved++;
+        grid[newR][c] = stack[k];
+      }
+    }
+    G.grid = grid;
+    return {
+      grid: G.grid,
+      cellsMoved: moved
+    };
+  }
+
+  /**
+   * Centre approximatif (pixels) d'une cellule (col,row) selon cellSize.
+   * Utilisé pour positionner particles/shockwaves au bon endroit du canvas.
+   */
+  function cellCenterPx(col, row, cellSize) {
+    return {
+      x: col * cellSize + cellSize / 2,
+      y: row * cellSize + cellSize / 2
+    };
+  }
+  window.STBoosters = {
+    COOLDOWNS: COOLDOWNS,
+    DURATIONS: DURATIONS,
+    applyFreeze: applyFreeze,
+    isFrozen: isFrozen,
+    applyLaser: applyLaser,
+    applyMeteor: applyMeteor,
+    applyMagnet: applyMagnet,
+    cellCenterPx: cellCenterPx
+  };
+})();
+
+/* ─────────────────────────────────────────────────────────── */
+
 /* === src/hooks/useGameLoop.js === */
 "use strict";
 
@@ -2487,6 +3197,14 @@ function GameScreen({
     gameRef.current = createInitialGameState();
   }
 
+  // ─── Reset particules au mount (clean state entre 2 parties)
+  useEffectGS(() => {
+    if (window.STParticles) window.STParticles.clear();
+    return () => {
+      if (window.STParticles) window.STParticles.clear();
+    };
+  }, []);
+
   // ─── State UI (re-renders OK)
   const [tick, setTick] = useStateGS(0); // counter pour forcer re-render
   const [paused, setPaused] = useStateGS(false);
@@ -2502,30 +3220,41 @@ function GameScreen({
       if (paused && e.code !== "Escape") return;
       switch (e.code) {
         case "ArrowLeft":
-          movePiece(G, -1, 0);
+          if (movePiece(G, -1, 0)) {
+            fxMove();
+          }
           break;
         case "ArrowRight":
-          movePiece(G, 1, 0);
+          if (movePiece(G, 1, 0)) {
+            fxMove();
+          }
           break;
         case "ArrowDown":
           if (movePiece(G, 0, 1)) {
             G.score += window.STScoring.softDropScore();
+            fxMove();
           }
           break;
         case "ArrowUp":
         case "KeyX":
-          rotatePiece(G, 1);
+          if (rotatePiece(G, 1)) {
+            fxRotate();
+          }
           break;
         case "KeyZ":
-          rotatePiece(G, -1);
+          if (rotatePiece(G, -1)) {
+            fxRotate();
+          }
           break;
         case "Space":
           hardDrop(G);
+          fxHardDrop();
           break;
         case "ShiftLeft":
         case "ShiftRight":
         case "KeyC":
           holdPiece(G);
+          fxHold();
           break;
         case "Escape":
           setPaused(p => !p);
@@ -2571,17 +3300,20 @@ function GameScreen({
       // Mouvement horizontal
       while (Math.abs(dx - accDx) >= SENSITIVITY) {
         if (dx > accDx) {
-          movePiece(G, 1, 0);
+          if (movePiece(G, 1, 0)) fxMove();
           accDx += SENSITIVITY;
         } else {
-          movePiece(G, -1, 0);
+          if (movePiece(G, -1, 0)) fxMove();
           accDx -= SENSITIVITY;
         }
       }
       // Soft drop vers le bas
       if (dy - accDy >= SENSITIVITY) {
         while (dy - accDy >= SENSITIVITY) {
-          if (movePiece(G, 0, 1)) G.score += window.STScoring.softDropScore();
+          if (movePiece(G, 0, 1)) {
+            G.score += window.STScoring.softDropScore();
+            fxMove();
+          }
           accDy += SENSITIVITY;
         }
       }
@@ -2599,6 +3331,7 @@ function GameScreen({
       // Swipe vertical rapide vers le bas → hard drop
       if (dy > 80 && Math.abs(dy) > Math.abs(dx) * 1.5 && dur < 400) {
         hardDrop(G);
+        fxHardDrop();
         setTick(s => s + 1);
         return;
       }
@@ -2608,9 +3341,10 @@ function GameScreen({
         if (now - lastTapTime < 300) {
           // Double-tap : hold
           holdPiece(G);
+          fxHold();
           lastTapTime = 0;
         } else {
-          rotatePiece(G, 1);
+          if (rotatePiece(G, 1)) fxRotate();
           lastTapTime = now;
         }
         setTick(s => s + 1);
@@ -2637,13 +3371,22 @@ function GameScreen({
     };
   }, [paused]);
 
-  // ─── Game loop : gravité automatique
+  // ─── Game loop : gravité automatique + particles update
   window.useGameLoop({
     active: !paused,
     onTick: deltaMs => {
       const G = gameRef.current;
       if (!G || G.gameOver) return;
       G.elapsedMs += deltaMs;
+
+      // Particules : update systématique, même si freeze (pour FX continu)
+      if (window.STParticles) window.STParticles.update(deltaMs);
+
+      // Freeze booster : bloque la gravité (mais pas les inputs)
+      if (window.STBoosters && window.STBoosters.isFrozen(G)) {
+        setTick(t => t + 1);
+        return;
+      }
       G.dropAcc += deltaMs;
       const gravMs = window.STScoring.gravityMs(G.level);
       while (G.dropAcc >= gravMs) {
@@ -2681,6 +3424,17 @@ function GameScreen({
       rows: window.STCore.ROWS,
       showGhost: true
     });
+
+    // Particules par-dessus le board (clear bursts, explosions, shockwaves)
+    if (window.STParticles) window.STParticles.draw(ctx);
+
+    // Voile freeze légèrement bleuté quand le booster est actif
+    if (window.STBoosters && window.STBoosters.isFrozen(G)) {
+      ctx.save();
+      ctx.fillStyle = "rgba(6, 182, 212, 0.12)";
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.restore();
+    }
   }, [tick, flashRows]);
 
   // ─── Game over handler
@@ -2747,6 +3501,10 @@ function GameScreen({
     if (!G.piece) return;
     const tspin = window.STCore.isTSpin(G.grid, G.piece, G.lastMoveWasRotation);
     G.grid = window.STCore.lock(G.grid, G.piece, G.piece.x, G.piece.y);
+
+    // FX : lock (haptic + sound)
+    fxLock();
+    const prevLevel = G.level;
     const cleared = window.STCore.clearLines(G.grid);
     G.grid = cleared.grid;
     G.linesTotal += cleared.count;
@@ -2766,14 +3524,16 @@ function GameScreen({
     // Combo state pour UI
     setCombo(G.combo);
 
-    // Flash effect sur les lignes effacées
+    // Flash effect + FX sur les lignes effacées
     if (cleared.lines.length) {
       setFlashRows(cleared.lines);
       setTimeout(() => setFlashRows([]), 200);
+      fxLineClear(cleared.count);
     }
 
-    // Niveau auto basé sur les lignes
+    // Niveau auto basé sur les lignes + FX si level up
     G.level = window.STScoring.levelFromLines(G.linesTotal);
+    if (G.level > prevLevel) fxLevelUp();
 
     // Spawn nouvelle pièce
     const nextName = window.STBag.drawNext(G);
@@ -2784,7 +3544,97 @@ function GameScreen({
     // Game over check
     if (window.STCore.isGameOver(G.grid, G.piece)) {
       G.gameOver = true;
+      fxGameOver();
     }
+  }
+
+  /* ─── FX helpers (audio + haptic + particles) ─────────────────
+     Tous wrappés en try/catch implicite : si le module n'est pas
+     chargé (ex: SSR ou fail du build), no-op silencieux.            */
+  function fxMove() {
+    if (window.STAudio) window.STAudio.play("move");
+    if (window.STHaptics) window.STHaptics.vibePattern("move");
+  }
+  function fxRotate() {
+    if (window.STAudio) window.STAudio.play("rotate");
+    if (window.STHaptics) window.STHaptics.vibePattern("rotate");
+  }
+  function fxLock() {
+    if (window.STAudio) window.STAudio.play("lock");
+    if (window.STHaptics) window.STHaptics.vibePattern("lock");
+  }
+  function fxHardDrop() {
+    if (window.STAudio) window.STAudio.play("hardDrop");
+    if (window.STHaptics) window.STHaptics.vibePattern("hardDrop");
+  }
+  function fxHold() {
+    if (window.STAudio) window.STAudio.play("hold");
+  }
+  function fxLevelUp() {
+    if (window.STAudio) window.STAudio.play("levelUp");
+    if (window.STHaptics) window.STHaptics.vibePattern("levelUp");
+  }
+  function fxGameOver() {
+    if (window.STAudio) window.STAudio.play("gameOver");
+    if (window.STHaptics) window.STHaptics.vibePattern("gameOver");
+  }
+  function fxLineClear(count) {
+    const cv = canvasRef.current;
+    if (cv && window.STParticles) {
+      window.STParticles.addLineClearBurst(cv.width, cv.height, count);
+    }
+    if (window.STAudio) {
+      const key = count >= 4 ? "tetris" : "line" + count;
+      window.STAudio.play(key);
+    }
+    if (window.STHaptics) {
+      window.STHaptics.vibePattern("line" + Math.min(4, count));
+    }
+  }
+
+  /** Active un booster acheté (clic sur un BoosterButton). */
+  function activateBooster(id) {
+    const G = gameRef.current;
+    if (!G || G.gameOver || paused || !window.STBoosters) return;
+    const cv = canvasRef.current;
+    const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
+    if (id === "freeze") {
+      window.STBoosters.applyFreeze(G);
+      if (window.STAudio) window.STAudio.play("booster");
+      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    } else if (id === "laser") {
+      const r = window.STBoosters.applyLaser(G);
+      if (cv && r.line >= 0 && window.STParticles) {
+        const cy = r.line * cellSize + cellSize / 2;
+        for (let x = 0; x < window.STCore.COLS; x++) {
+          window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#facc15");
+        }
+      }
+      if (window.STAudio) window.STAudio.play("booster");
+      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    } else if (id === "meteor") {
+      const r = window.STBoosters.applyMeteor(G, 5);
+      if (cv && window.STParticles) {
+        r.cells.forEach(function (cell) {
+          const px = cell.x * cellSize + cellSize / 2;
+          const py = cell.y * cellSize + cellSize / 2;
+          window.STParticles.addShockwave(px, py);
+          window.STParticles.addExplosion(px, py, "#f97316");
+        });
+      }
+      if (window.STAudio) window.STAudio.play("booster");
+      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    } else if (id === "magnet") {
+      const r = window.STBoosters.applyMagnet(G);
+      if (cv && window.STParticles && r.cellsMoved > 0) {
+        for (let x = 0; x < window.STCore.COLS; x++) {
+          window.STParticles.addExplosion(x * cellSize + cellSize / 2, cv.height - cellSize, "#ec4899");
+        }
+      }
+      if (window.STAudio) window.STAudio.play("booster");
+      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    }
+    setTick(t => t + 1);
   }
   const G = gameRef.current;
   return /*#__PURE__*/React.createElement("div", {
@@ -2831,7 +3681,7 @@ function GameScreen({
     inventory: profile && profile.boosters || {},
     cooldowns: {},
     onUse: id => {
-      // V1 : on consomme juste le booster (logique full V2)
+      activateBooster(id);
       if (typeof onProfileChange === "function") {
         onProfileChange(p => ({
           ...p,
