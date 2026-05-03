@@ -55,9 +55,16 @@
 - `package.json` : devDependencies Babel + scripts build/dev/test
 - ✅ **Bundle généré : 19 fichiers → 132.6 KB en 3.6s**
 
-### 🚧 EN COURS
+### 🚧 EN COURS (mise à jour 2026-05-03)
 
-**Aucune tâche en cours.** Le code Super Tetris V1 est **structurellement complet**. Prochaine étape = test local par Pino + déploiement.
+**Patch design v1.1 (retour Pino post-déploiement)** :
+- ✅ Canvas plus grand + responsive (aspect ratio 1:2, fit viewport)
+- ✅ HUD repensé : SCORE (gold huge) + TIME (sky huge) côte à côte en hero row
+- ✅ Section "Compétitions" ajoutée au cahier (Modèle A vs B + alertes légales)
+- 🚧 À builder + push (`node build.js && git push`)
+
+**Décision business à prendre (avant V2)** :
+- Choisir entre **Modèle A** (cash réel, nécessite licence) et **Modèle B** (sponsored + premium pass, zéro risque légal). Voir section 3.5bis ci-dessus.
 
 ### 📋 À FAIRE
 
@@ -214,6 +221,183 @@ L'objectif est un produit **"polished mobile casual game"** indistinguable de l'
 - **Missions journalières** : "Faire 5 lignes", "Atteindre 10 000 pts", etc.
 - **Coffre quotidien** : ouvre tous les jours pour bonus surprise
 - **Quêtes hebdo** (V2)
+
+### 3.5bis Système de compétitions / tournois — MODÈLE FINAL (décidé 2026-05-03)
+
+> ✅ **Décision arrêtée par Pino le 2026-05-03** : modèle "sweepstakes sponsorisé"
+> à threshold (modèle C ci-dessous). Les modèles A et B sont conservés comme
+> historique de réflexion mais NE seront PAS implémentés.
+
+#### Modèle C — Sweepstakes sponsorisé à threshold (RETENU ✅)
+
+**Mécanique :**
+- **Inscription au tournoi : GRATUITE** (aucun paiement requis pour participer)
+- Cagnotte alimentée par **30% des revenus nets cumulés de Pino** (après déduction du % Google Play / Apple Store)
+- **Threshold d'activation** : la fonctionnalité "Compétition" n'apparaît dans l'app que lorsque **revenus nets cumulés ≥ 10 000 USD**
+  - Avant ce seuil, l'option n'existe pas (l'utilisateur ne voit pas de tournoi)
+  - À partir du seuil, le bouton "🏆 Tournois" s'active sur HomeScreen
+  - Entre chaque tournoi, recalcul du % de revenus net disponible pour la prochaine cagnotte
+- Pools : **100 joueurs max** par tournoi (création automatique de nouveaux pools si demande)
+- Cycles : **journalier**, **hebdomadaire**, **mensuel** (selon cagnotte disponible)
+
+**Modèle économique global :**
+- 100% du revenu Pino vient de :
+  - 📺 **Pubs récompensées** (rewarded ads) — entre 0,02-0,10 USD par vue
+  - 💳 **Achats intégrés** (packs de pièces / boosters / Premium Pass)
+  - 🎫 **Premium Pass** mensuel à $2,99 (sans pubs + bonus quotidien + accès tournois VIP)
+- Une fois la commission Google déduite (15-30% selon type) → calcul du **revenu net**
+- 30% du revenu net → réservé à la cagnotte des prochains tournois (pool commun, redistribué progressivement)
+- 70% du revenu net → réinvestissement (dev, marketing) + bénéfice Pino
+
+**Distribution des gains au sein d'un pool :**
+- **Pool < 100 joueurs** (cagnotte plus petite) : top 10 partagent (40% / 25% / 15% / 8% / 5% / 3% / 2% / 1% / 0,5% / 0,5%)
+- **Pool 100-1000** : top 20 partagent (curve plus douce)
+- **Pool > 1000** : top 30 partagent + petits lots de consolation
+- Distribution **automatique** via Notch Pay (pour CM) ou autres rails par pays
+
+**Conditions d'éligibilité (pour participer au tournoi) :**
+- Cumul minimum de **10 heures de jeu** sur Super Tetris
+- Best score >= **50 000 pts** (prouve que c'est un joueur sérieux, pas un bot)
+- Compte vérifié (email confirmé)
+- Avoir lu et accepté les conditions de participation
+- Pays autorisé (vérifier liste pays par pays — sweepstakes laws variables)
+- 18+ recommandé (à confirmer par juridiction)
+
+**Avantages business :**
+- ✅ **Aucun risque financier pour Pino** : la cagnotte est un % de ce qu'il a DÉJÀ gagné
+- ✅ **Aucune licence requise** : ce n'est pas un jeu d'argent (no entry fee = sweepstakes légal)
+- ✅ **Marketing extrêmement puissant** : "Joue gratuitement à Super Tetris, gagne du cash réel chaque semaine !"
+- ✅ **Boucle de rétention parfaite** : pour participer, il faut jouer 10h+ → l'utilisateur s'engage → temps de jeu = revenus pubs + IAP
+- ✅ **Validation Google Play standard** (sweepstakes ≠ gambling tant qu'inscription gratuite)
+- ✅ **Boucle vertueuse** : plus de joueurs → plus de revenus → plus de cagnotte → plus d'attrait → plus de joueurs
+
+**⚠️ Nuances légales à valider :**
+- 🇺🇸 **USA** : afficher "NO PURCHASE NECESSARY" en évidence (sweepstakes laws) — déjà OK car inscription gratuite
+- 🇨🇲 **Cameroun** : déclaration éventuelle au MINFI pour distribution de gains réguliers (à vérifier — petit montant peut être OK)
+- 🇪🇺 **UE** : 18+ obligatoire si argent réel + transparency conditions
+- Toutes juridictions : Terms of Service clairs + équité du tirage prouvable + KYC pour payouts > $X
+
+#### Modèles ARCHIVÉS (non retenus)
+
+**Modèle A — RMG entry fee** (initialement proposé) : nécessitait licence pari, refusé par les stores sans licence. **Trop risqué et lent.**
+
+**Modèle B — Sponsored sans cash réel** (j'avais recommandé) : pas de cash → moins viral, moins motivant. Pino a préféré C qui combine légalité ET cash gain réel.
+
+→ **Modèle C = best of both worlds**.
+
+#### Modèle A — Real Money Game (RMG) "compétition payante" (proposé par Pino 2026-05-03)
+
+**Mécanique :**
+- Inscription au tournoi : **2,99 USD par participant**
+- Pool : **100 joueurs max** par tournoi
+- Cycle : **journalier** + **hebdomadaire** + **mensuel**
+
+**Modèle économique :**
+- 30% du total des inscriptions → **commission Byer/CloneX**
+- 70% → **cagnotte distribuée aux gagnants**
+- Distribution :
+  - Pool de 100 joueurs (peu de monde) → top 10 partagent
+  - Pool de +3 000 000 joueurs → top 20-30 partagent
+  - Cagnotte journalière → distribution quotidienne automatique
+  - Cagnotte hebdomadaire → top X de la semaine
+  - Cagnotte mensuelle → top X du mois (gros prix grand pool)
+
+**Conditions d'éligibilité :**
+- Cumul minimum d'**heures de jeu** (ex: 10h)
+- Cumul minimum de **points** (ex: best score > 50 000)
+- Objectif : pousser les joueurs à rester sur l'app (rétention)
+
+**⚠️ Contraintes légales et techniques (À VALIDER AVANT DÉV) :**
+
+| Aspect | Cameroun | Google Play | Apple App Store |
+|---|---|---|---|
+| Statut légal | Considéré comme **loterie / pari** | Politique **Real Money Gaming** stricte | Politique **In-App Gambling** très stricte |
+| Licence requise | **Licence MINFI** ou via opérateur agréé (PMUC, etc.) | Pays par pays — soumission spéciale RMG | Souvent refusé sauf si opérateur licencié reconnu |
+| Vérification utilisateur | KYC obligatoire (18+ + ID + adresse) | Idem | Idem |
+| Conformité | Anti-blanchiment, fiscalité gains | Submitted to RMG flow (au lieu du flow normal) | Apple developer relations spécifique |
+| Risque d'app refusée | — | **Élevé** sans licence prouvée | **Très élevé** |
+| Délai de mise sur le marché | 6-12 mois (licence + KYC + infra) | 3-4 semaines de revue Google | 1-3 mois de revue Apple |
+
+→ **Ce modèle nécessite obligatoirement** : licence pari/jeu + KYC stricte + comptabilité fiscale + audit + restrictions géographiques (uniquement pays où c'est légal).
+
+#### Modèle B — Tournois sponsorisés (gratuit + monnaie virtuelle, RECOMMANDÉ)
+
+**Mécanique :**
+- Inscription **gratuite** au tournoi (pas de cash réel)
+- Gains payés en **pièces virtuelles** (in-game currency)
+- Pièces virtuelles **non échangeables contre du cash réel** mais utilisables pour : boosters, skins, premium pass, etc.
+- Pools identiques (100 joueurs max, journalier/hebdo/mensuel)
+
+**Modèle économique :**
+- **Pubs récompensées** entre les tournois (l'utilisateur regarde une pub pour tenter sa chance plusieurs fois)
+- **Premium Pass mensuel** ($2.99/mois) :
+  - Pas de pubs
+  - Pièces virtuelles bonus quotidiennes
+  - Accès tournois VIP avec gros prix virtuels
+  - Skins exclusifs
+  - +50% XP
+- **Achats in-app de pièces virtuelles** (packs : 100 / 500 / 2000 pièces)
+
+**Avantages vs Modèle A :**
+- ✅ **Aucune licence requise** — légal partout, pas de vérification 18+
+- ✅ **Validation Google/Apple** = revue normale, pas de RMG flow
+- ✅ **Time to market : immédiat** (pas d'attente licence)
+- ✅ **ARPU plus élevé** (Brawl Stars, Clash Royale font des milliards avec ce modèle)
+- ✅ **Public plus large** (tous les pays, tous les âges 12+)
+- ✅ **Pas de risque pénal**
+
+**Inconvénients :**
+- 🔸 Pas de gain direct cash pour les joueurs (mais la perception de "victoire" + FOMO marche très bien)
+- 🔸 Modèle "freemium" classique, doit être finement balancé pour conversion 1-3% en payeurs
+
+**Référence** : Brawl Stars (Supercell) ~3 milliards $ revenus, modèle 100% sponsorisé.
+
+#### Cas hybride (V3 long terme, après legal solide)
+
+Si Byer/CloneX réussit avec le Modèle B et accumule du capital + équipe légale :
+- Fonder une entité licenciée (filiale "CloneX Gaming Ltd" basée Malta ou Curaçao, juridictions cash gaming friendly)
+- Obtenir licence MGA ou Curaçao eGaming
+- Lancer un produit séparé "CloneX Cash Tournaments" — uniquement dans les pays où c'est légal
+- Ce produit serait une app distincte, pas Super Tetris (pour éviter de cannibaliser la base utilisateurs casual)
+
+→ **Recommandation Claude** : commencer par **Modèle B** pour Super Tetris V1+V2 (lancement rapide, ROI prouvé, zéro risque). Modèle A à reconsidérer en V3+ après avoir atteint masse critique.
+
+### 3.5ter Système de viralité / parrainage (V2)
+
+> 🎯 **Objectif** (Pino 2026-05-03) : faire grandir la base utilisateurs par
+> invitation entre amis (acquisition organique gratuite, taux conversion
+> naturellement plus élevé que les pubs payantes).
+
+**Mécanique du parrainage :**
+- Chaque joueur reçoit un **code de parrainage unique** (ex: "JOSEPH-2X4") visible dans Profil
+- Lien magique partageable : `https://super-tetris.pages.dev/?ref=JOSEPH-2X4`
+- Quand un nouvel utilisateur installe l'app via ce lien :
+  - Il s'inscrit normalement
+  - À la 1ère ouverture, l'app détecte le `ref=` dans l'URL et l'enregistre dans son profil
+  - Le code parrain est validé après que le filleul a atteint un milestone (ex: niveau 5 + 1h de jeu cumulée → évite le farming)
+
+**Récompenses :**
+
+| Action | Récompense PARRAIN | Récompense FILLEUL |
+|---|---|---|
+| Filleul installe + niveau 5 | +100 pièces virtuelles + 1× freeze | +100 pièces virtuelles + 1× freeze |
+| Filleul atteint 1h de jeu | +50 pièces | +50 pièces |
+| Filleul achète 1er pack IAP | +500 pièces + 1× meteor | +200 pièces |
+| Filleul devient Premium Pass | +1 mois Premium gratuit | — (déjà Premium) |
+| Tous les paliers de récompense scalent | Sans limite (X filleuls = X récompenses) | One-shot par filleul |
+
+**Boutons partage natifs (intégrés au flow) :**
+- Profil → "Inviter des amis" → ouvre le sheet de partage natif (WhatsApp, SMS, Telegram, Twitter, etc.) avec le lien pré-rempli + texte attractif type "Viens jouer à Super Tetris avec moi ! 🎮 Tu gagnes 100 pièces + 1 booster à l'inscription via mon lien : [URL]"
+- Game Over Screen → bouton secondaire "📤 Partager mon score"
+- Roue de la fortune → bouton "Inviter pour 1 spin gratuit" (alternative au cooldown 24h)
+
+**Tracking technique :**
+- Table `referrals` : `parrain_user_id`, `filleul_user_id`, `code_used`, `created_at`, `validated_at`, `rewards_paid` boolean
+- Edge Function `referral-validate` : appelée à chaque milestone du filleul, distribue les récompenses
+- Anti-fraude : vérifier 1 IP/device par filleul, blacklist des comportements suspects
+
+**Affichage joueur :**
+- Profil → section "Parrainage" : code visible (copy 1-clic) + nb filleuls actifs + total récompenses gagnées via parrainage + bouton "Inviter"
 
 ### 3.6 Achats intégrés (Google Play Billing)
 - **Pack petit** : 100 pièces or (~0,99€)

@@ -1126,20 +1126,15 @@ window.Starfield = function Starfield({
 "use strict";
 
 /* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — HUD (Heads-Up Display)
+   Super Tetris — HUD (Heads-Up Display) v2
    ═══════════════════════════════════════════════════════════════════
-   Barre supérieure pendant le jeu :
-     - TIME : compteur mm:ss depuis le start de la partie
-     - TARGET : objectif (ex: "CLEAR 17 LINES" pour le mode Marathon)
-     - NEXT : prochaine pièce dans un mini-canvas
-     - HOLD : pièce en réserve (modal V2)
-     - SCORE + LEVEL + COMBO en sous-barre
+   Hiérarchie visuelle revue (retour Pino 2026-05-03) :
+     - Top row : SCORE (très grand, gold) + TIME (côté à côté, équivalents)
+     - Middle row : LEVEL / COMBO / NEXT / HOLD (badges plus petits)
+     - Target en sous-titre du score (ex: "/ 17 lignes")
 
-   Style cohérent avec les screenshots Tetris officiel :
-     - Cards bleu marine bordure violette
-     - Police Lilita One pour les valeurs
-     - Labels en cyan/sky
-     - Coins arrondis, ombres profondes
+   Le score doit être assez grand pour être lisible pendant le jeu et
+   sur la capture pour le classement (futur tournoi).
    ═══════════════════════════════════════════════════════════════════ */
 
 const {
@@ -1158,8 +1153,6 @@ function HUD({
 }) {
   const nextCanvasRef = useRefHUD(null);
   const holdCanvasRef = useRefHUD(null);
-
-  // Dessine la prochaine pièce dans le mini-canvas
   useEffectHUD(() => {
     const cv = nextCanvasRef.current;
     if (!cv || !window.STRender) return;
@@ -1178,103 +1171,83 @@ function HUD({
   return /*#__PURE__*/React.createElement("div", {
     style: SHUD.root
   }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.topRow
-  }, /*#__PURE__*/React.createElement(Card, {
-    label: "TIME"
+    style: SHUD.heroRow
   }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.bigValue
-  }, formatTime(time))), /*#__PURE__*/React.createElement(Card, {
-    label: "TARGET",
-    wide: true
+    style: SHUD.heroBlock
   }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.targetText
-  }, "CLEAR ", /*#__PURE__*/React.createElement("span", {
-    style: SHUD.targetNum
-  }, remaining), " LINES")), /*#__PURE__*/React.createElement(Card, {
+    style: SHUD.heroLabel
+  }, "SCORE"), /*#__PURE__*/React.createElement("div", {
+    style: SHUD.scoreValue
+  }, formatNum(score))), /*#__PURE__*/React.createElement("div", {
+    style: SHUD.heroDivider
+  }), /*#__PURE__*/React.createElement("div", {
+    style: SHUD.heroBlock
+  }, /*#__PURE__*/React.createElement("div", {
+    style: SHUD.heroLabel
+  }, "TIME"), /*#__PURE__*/React.createElement("div", {
+    style: SHUD.timeValue
+  }, formatTime(time)))), /*#__PURE__*/React.createElement("div", {
+    style: SHUD.midRow
+  }, /*#__PURE__*/React.createElement(BadgeStat, {
+    label: "LVL",
+    value: level || 1,
+    color: "var(--purple-l)"
+  }), /*#__PURE__*/React.createElement(BadgeStat, {
+    label: "COMBO",
+    value: combo > 0 ? "×" + combo : "×0",
+    color: combo > 0 ? "var(--gold)" : "rgba(255,255,255,0.5)"
+  }), /*#__PURE__*/React.createElement(BadgeStat, {
+    label: "LINES",
+    value: currentLines || 0,
+    color: "var(--green-l)",
+    sub: remaining < 999 ? "/ " + remaining + " restant" : null
+  })), /*#__PURE__*/React.createElement("div", {
+    style: SHUD.miniRow
+  }, /*#__PURE__*/React.createElement(MiniCanvas, {
     label: "NEXT",
-    tab: true
-  }, /*#__PURE__*/React.createElement("canvas", {
-    ref: nextCanvasRef,
+    ref_: nextCanvasRef
+  }), /*#__PURE__*/React.createElement(MiniCanvas, {
+    label: "HOLD",
+    ref_: holdCanvasRef
+  })));
+}
+
+/* ─── Sub-components ─────────────────────────────────────────── */
+function BadgeStat({
+  label,
+  value,
+  color,
+  sub
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: SHUD.badge
+  }, /*#__PURE__*/React.createElement("div", {
+    style: SHUD.badgeLabel
+  }, label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...SHUD.badgeValue,
+      color: color
+    }
+  }, value), sub && /*#__PURE__*/React.createElement("div", {
+    style: SHUD.badgeSub
+  }, sub));
+}
+function MiniCanvas({
+  label,
+  ref_
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: SHUD.miniCard
+  }, /*#__PURE__*/React.createElement("div", {
+    style: SHUD.miniLabel
+  }, label), /*#__PURE__*/React.createElement("canvas", {
+    ref: ref_,
     width: 56,
     height: 40,
     style: {
       display: "block"
     }
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: SHUD.bottomRow
-  }, /*#__PURE__*/React.createElement(MiniStat, {
-    label: "SCORE",
-    value: formatNum(score),
-    highlight: true
-  }), /*#__PURE__*/React.createElement(MiniStat, {
-    label: "LVL",
-    value: level || 1
-  }), /*#__PURE__*/React.createElement(MiniStat, {
-    label: "COMBO",
-    value: combo > 0 ? "×" + combo : "—",
-    accent: combo > 0
-  }), /*#__PURE__*/React.createElement(Card, {
-    label: "HOLD",
-    tab: true,
-    style: {
-      marginLeft: "auto"
-    }
-  }, /*#__PURE__*/React.createElement("canvas", {
-    ref: holdCanvasRef,
-    width: 48,
-    height: 36,
-    style: {
-      display: "block"
-    }
-  }))));
-}
-
-/* ─── Sub-components ─────────────────────────────────────────── */
-function Card({
-  label,
-  children,
-  wide,
-  tab,
-  style
-}) {
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...SHUD.card,
-      flex: wide ? 1 : "0 0 auto",
-      ...(tab ? SHUD.cardTab : {}),
-      ...style
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.cardLabel
-  }, label), /*#__PURE__*/React.createElement("div", {
-    style: SHUD.cardBody
-  }, children));
-}
-function MiniStat({
-  label,
-  value,
-  highlight,
-  accent
-}) {
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...SHUD.miniStat,
-      ...(highlight ? SHUD.miniStatHighlight : {})
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.miniLabel
-  }, label), /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...SHUD.miniValue,
-      ...(accent ? {
-        color: "var(--gold)"
-      } : {}),
-      ...(highlight ? {
-        color: "var(--gold)",
-        fontSize: 18
-      } : {})
-    }
-  }, value));
+  }));
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
@@ -1294,94 +1267,120 @@ const SHUD = {
   root: {
     display: "flex",
     flexDirection: "column",
-    gap: 8,
-    padding: "calc(env(safe-area-inset-top, 0px) + 8px) 8px 8px"
-  },
-  topRow: {
-    display: "flex",
-    gap: 8,
-    alignItems: "stretch"
-  },
-  bottomRow: {
-    display: "flex",
     gap: 6,
-    alignItems: "center"
+    padding: "calc(env(safe-area-inset-top, 0px) + 8px) 10px 6px"
   },
-  card: {
+  /* ═══ HERO ROW (Score + Time très visible) ═══ */
+  heroRow: {
+    display: "flex",
+    alignItems: "stretch",
     background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
     border: "1.5px solid var(--purple)",
-    borderRadius: 12,
-    padding: "6px 10px",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 0 rgba(0,0,0,0.25)",
+    borderRadius: 14,
+    padding: "10px 16px",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 0 rgba(0,0,0,0.3)"
+  },
+  heroBlock: {
+    flex: 1,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    minWidth: 70
+    justifyContent: "center",
+    minWidth: 0
   },
-  cardTab: {
-    position: "relative",
-    minWidth: 60
+  heroDivider: {
+    width: 2,
+    background: "rgba(255,255,255,0.12)",
+    margin: "4px 12px",
+    borderRadius: 2
   },
-  cardLabel: {
+  heroLabel: {
     fontSize: 10,
     fontWeight: 800,
     color: "var(--sky)",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     textTransform: "uppercase",
     marginBottom: 2
   },
-  cardBody: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 24
-  },
-  bigValue: {
+  scoreValue: {
     fontFamily: "'Lilita One', cursive",
-    fontSize: 20,
-    color: "#fff",
-    letterSpacing: 1,
-    textShadow: "0 1px 0 rgba(0,0,0,0.4)"
-  },
-  targetText: {
-    fontFamily: "'Lilita One', cursive",
-    fontSize: 14,
-    color: "#fff",
-    letterSpacing: 1,
-    textAlign: "center",
-    lineHeight: 1.1
-  },
-  targetNum: {
+    fontSize: "clamp(22px, 6vw, 32px)",
     color: "var(--gold)",
-    fontSize: 22,
-    margin: "0 4px"
+    letterSpacing: 0.5,
+    textShadow: "0 2px 0 rgba(0,0,0,0.4), 0 0 12px rgba(255,210,63,0.4)",
+    lineHeight: 1.1,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: "100%"
   },
-  miniStat: {
-    flex: "0 0 auto",
-    padding: "4px 10px",
+  timeValue: {
+    fontFamily: "'Lilita One', cursive",
+    fontSize: "clamp(22px, 6vw, 32px)",
+    color: "var(--sky)",
+    letterSpacing: 1,
+    textShadow: "0 2px 0 rgba(0,0,0,0.4), 0 0 12px rgba(56,189,248,0.4)",
+    lineHeight: 1.1,
+    whiteSpace: "nowrap"
+  },
+  /* ═══ MIDDLE ROW (Level / Combo / Lines) ═══ */
+  midRow: {
+    display: "flex",
+    gap: 6,
+    alignItems: "stretch"
+  },
+  badge: {
+    flex: 1,
     background: "rgba(0,0,0,0.35)",
-    borderRadius: 10,
     border: "1px solid rgba(124,58,237,0.4)",
+    borderRadius: 10,
+    padding: "5px 8px",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    minWidth: 50
+    minWidth: 0
   },
-  miniStatHighlight: {
-    background: "linear-gradient(180deg, var(--purple), var(--purple-d))",
-    border: "1.5px solid var(--gold)"
+  badgeLabel: {
+    fontSize: 9,
+    fontWeight: 800,
+    color: "rgba(255,255,255,0.65)",
+    letterSpacing: 1
+  },
+  badgeValue: {
+    fontFamily: "'Lilita One', cursive",
+    fontSize: 18,
+    lineHeight: 1.1,
+    textShadow: "0 1px 0 rgba(0,0,0,0.4)"
+  },
+  badgeSub: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.5)",
+    fontWeight: 700,
+    marginTop: 1
+  },
+  /* ═══ MINI ROW (Next / Hold) ═══ */
+  miniRow: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  miniCard: {
+    background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
+    border: "1.5px solid var(--purple)",
+    borderRadius: 10,
+    padding: "4px 10px",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 3px 0 rgba(0,0,0,0.25)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center"
   },
   miniLabel: {
     fontSize: 9,
     fontWeight: 800,
-    color: "rgba(255,255,255,0.7)",
-    letterSpacing: 1
-  },
-  miniValue: {
-    fontFamily: "'Lilita One', cursive",
-    fontSize: 14,
-    color: "#fff",
-    lineHeight: 1.2
+    color: "var(--sky)",
+    letterSpacing: 1.5,
+    marginBottom: 2
   }
 };
 window.HUD = HUD;
@@ -2808,8 +2807,8 @@ function GameScreen({
     style: SGS.canvasWrap
   }, /*#__PURE__*/React.createElement("canvas", {
     ref: canvasRef,
-    width: 300,
-    height: 600,
+    width: 400,
+    height: 800,
     style: SGS.canvas
   }), combo >= 2 && /*#__PURE__*/React.createElement("div", {
     style: SGS.comboBanner,
@@ -2919,15 +2918,20 @@ const SGS = {
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-    minHeight: 0
+    minHeight: 0,
+    padding: "8px 12px"
   },
   canvas: {
     background: "var(--canvas-bg1)",
-    borderRadius: 8,
-    boxShadow: "0 0 24px rgba(124,58,237,0.4), inset 0 0 0 2px rgba(124,58,237,0.6)",
+    borderRadius: 10,
+    boxShadow: "0 0 24px rgba(124,58,237,0.5), inset 0 0 0 3px rgba(124,58,237,0.7)",
     touchAction: "none",
-    maxHeight: "calc(100vh - 280px)",
-    width: "auto"
+    /* Responsive : prend la place disponible. Aspect ratio 1:2 (10 cols × 20 rows).
+       maxHeight = vh - HUD (~140px) - boosters (~80px) - controls (~50px) - safe areas */
+    height: "min(calc(100vh - 280px), calc((100vw - 24px) * 2))",
+    width: "auto",
+    aspectRatio: "1 / 2",
+    maxWidth: "calc(100vw - 24px)"
   },
   comboBanner: {
     position: "absolute",
@@ -3979,24 +3983,9 @@ function SettingsScreen({
       })
     })
   })), /*#__PURE__*/React.createElement(Section, {
-    title: "Apparence"
+    title: "Langue"
   }, /*#__PURE__*/React.createElement(Row, {
-    label: "Th\xE8me",
-    control: /*#__PURE__*/React.createElement(SegmentedControl, {
-      value: s.theme,
-      options: [{
-        id: "dark",
-        label: "🌙 Sombre"
-      }, {
-        id: "light",
-        label: "☀️ Clair"
-      }],
-      onChange: v => update({
-        theme: v
-      })
-    })
-  }), /*#__PURE__*/React.createElement(Row, {
-    label: "Langue",
+    label: "Langue de l'app",
     control: /*#__PURE__*/React.createElement("select", {
       style: SS.select,
       value: s.lang,

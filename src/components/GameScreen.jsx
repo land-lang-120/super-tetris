@@ -336,12 +336,12 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         >🏠</button>
       </div>
 
-      {/* Canvas centered */}
+      {/* Canvas centered — responsive : taille calculée pour remplir l'écran */}
       <div style={SGS.canvasWrap}>
         <canvas
           ref={canvasRef}
-          width={300}
-          height={600}
+          width={400}
+          height={800}
           style={SGS.canvas}
         />
         {combo >= 2 && (
@@ -450,14 +450,19 @@ const SGS = {
     justifyContent: "center",
     position: "relative",
     minHeight: 0,
+    padding: "8px 12px",
   },
   canvas: {
     background: "var(--canvas-bg1)",
-    borderRadius: 8,
-    boxShadow: "0 0 24px rgba(124,58,237,0.4), inset 0 0 0 2px rgba(124,58,237,0.6)",
+    borderRadius: 10,
+    boxShadow: "0 0 24px rgba(124,58,237,0.5), inset 0 0 0 3px rgba(124,58,237,0.7)",
     touchAction: "none",
-    maxHeight: "calc(100vh - 280px)",
+    /* Responsive : prend la place disponible. Aspect ratio 1:2 (10 cols × 20 rows).
+       maxHeight = vh - HUD (~140px) - boosters (~80px) - controls (~50px) - safe areas */
+    height: "min(calc(100vh - 280px), calc((100vw - 24px) * 2))",
     width: "auto",
+    aspectRatio: "1 / 2",
+    maxWidth: "calc(100vw - 24px)",
   },
 
   comboBanner: {

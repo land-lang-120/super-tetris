@@ -62,3 +62,7 @@
   --radius-card: 18px;
   --radius-btn: 14px;
 }
+
+/* ⚠️ Mode clair RETIRÉ (décision Pino 2026-05-03) :
+   l'app reste toujours en thème bleu marine "Tetris officiel".
+   Aucune classe body.light n'est utilisée. */

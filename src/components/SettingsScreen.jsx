@@ -58,23 +58,11 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
           />
         </Section>
 
-        {/* Apparence */}
-        <Section title="Apparence">
+        {/* Apparence — mode clair retiré (décision Pino) : thème unique
+            "Tetris officiel" bleu marine, pas de toggle. */}
+        <Section title="Langue">
           <Row
-            label="Thème"
-            control={
-              <SegmentedControl
-                value={s.theme}
-                options={[
-                  { id: "dark",  label: "🌙 Sombre" },
-                  { id: "light", label: "☀️ Clair" },
-                ]}
-                onChange={(v) => update({ theme: v })}
-              />
-            }
-          />
-          <Row
-            label="Langue"
+            label="Langue de l'app"
             control={
               <select
                 style={SS.select}
