@@ -2082,45 +2082,59 @@ window.HUD = HUD;
 "use strict";
 
 /* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — BoosterButtons
+   Super Tetris — BoosterButtons (style BONBON Tetroid)
    ═══════════════════════════════════════════════════════════════════
-   Barre fixe en bas de l'écran de jeu avec les 4 boosters consommables :
-     - ❄️ Freeze : stop la chute pendant 3s
-     - ⚡ Laser  : détruit la ligne courante
-     - ☄️ Meteor : détruit 5 cellules aléatoires
-     - 🧲 Magnet : attire les pièces dans les trous
+   v3 (Pino #3) : reproduction exacte du design Tetroid (css/boosters.css)
+   = bonbons brillants ronds avec :
+     - radial-gradient candy (clair → moyen → sombre)
+     - box-shadow empilés : cerclage blanc 3px + cerclage couleur 6px
+       + ombre 3D inférieure + glow néon
+     - reflet brillant en haut-gauche (bulle de verre) + petit point
+     - badge compteur vert (pastille avec bordure blanche)
+     - label sous le bouton (UPPERCASE, violet clair)
+     - animation tap : scale(0.88) translateY(3px)
 
-   Chaque bouton affiche le compteur restant. Si compteur = 0,
-   le bouton est grisé avec un "+" pour acheter (V2 → ouvre shop).
+   Couleurs OFFICIELLES Tetroid :
+     ❄️ FREEZE  : bleu ciel  (#b0eeff → #30b0e8 → #0870c0)
+     ⚡ LASER   : ROUGE cerise (#ffb0b0 → #ff2020 → #aa0000)
+     ☄️ METEOR  : orange mandarine (#ffe090 → #ff9000 → #c05500)
+     🧲 MAGNET  : violet raisin (#e8b0ff → #b020ff → #6600cc)
 
-   Props:
-     - inventory: { freeze, laser, meteor, magnet } (compteurs)
-     - cooldowns: { freeze, laser, meteor, magnet } (ms restants si en cooldown)
-     - onUse(boosterId): callback quand l'utilisateur active
-     - onBuy(boosterId): callback quand le compteur est à 0 (V2)
-     - disabled: bool (game pause / over)
+   Props : inventory, cooldowns, onUse, onBuy, disabled
    ═══════════════════════════════════════════════════════════════════ */
 
 const BOOSTERS = [{
   id: "freeze",
   icon: "❄️",
-  color: "#06b6d4",
-  label: "Freeze"
+  label: "Freeze",
+  grad: ["#b0eeff", "#30b0e8", "#0870c0"],
+  ring: "#30b0e8",
+  shadow3d: "#054880",
+  glow: "rgba(0,120,200,0.6)"
 }, {
   id: "laser",
   icon: "⚡",
-  color: "#facc15",
-  label: "Laser"
+  label: "Laser",
+  grad: ["#ffb0b0", "#ff2020", "#aa0000"],
+  ring: "#ff2020",
+  shadow3d: "#700000",
+  glow: "rgba(220,0,0,0.6)"
 }, {
   id: "meteor",
   icon: "☄️",
-  color: "#f97316",
-  label: "Meteor"
+  label: "Meteor",
+  grad: ["#ffe090", "#ff9000", "#c05500"],
+  ring: "#ff9000",
+  shadow3d: "#7a3000",
+  glow: "rgba(200,100,0,0.6)"
 }, {
   id: "magnet",
   icon: "🧲",
-  color: "#ec4899",
-  label: "Magnet"
+  label: "Magnet",
+  grad: ["#e8b0ff", "#b020ff", "#6600cc"],
+  ring: "#b020ff",
+  shadow3d: "#3a0088",
+  glow: "rgba(140,0,220,0.6)"
 }];
 function BoosterButtons({
   inventory,
@@ -2138,12 +2152,13 @@ function BoosterButtons({
     const cooldown = cd[b.id] ?? 0;
     const empty = count <= 0;
     const onCD = cooldown > 0;
-    const isDisabled = !!disabled || empty && !onBuy || onCD;
-    return /*#__PURE__*/React.createElement("button", {
+    const isDisabled = !!disabled || onCD;
+    return /*#__PURE__*/React.createElement("div", {
       key: b.id,
+      style: SBB.bb
+    }, /*#__PURE__*/React.createElement("button", {
       onClick: () => {
-        if (disabled) return;
-        if (onCD) return;
+        if (disabled || onCD) return;
         if (empty) {
           if (typeof onBuy === "function") onBuy(b.id);
         } else {
@@ -2151,144 +2166,177 @@ function BoosterButtons({
         }
       },
       disabled: isDisabled && !empty,
+      className: "st-candy",
       style: {
-        ...SBB.btn,
+        ...SBB.bi,
         opacity: disabled || onCD ? 0.45 : 1,
         cursor: isDisabled && !empty ? "not-allowed" : "pointer",
-        borderColor: empty ? "rgba(255,255,255,0.25)" : b.color,
-        /* Halo extérieur + ombre 3D vers le bas pour effet "bouton physique" */
-        boxShadow: empty ? "0 5px 0 rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.05)" : "0 5px 0 " + shade(b.color, -40) + ", " + "0 0 18px " + alpha(b.color, 0.55) + ", " + "inset 0 2px 0 rgba(255,255,255,0.25), " + "inset 0 -3px 0 " + alpha("#000", 0.3),
-        background: empty ? "radial-gradient(circle at 30% 30%, var(--bg2), var(--bg1))" : "radial-gradient(circle at 30% 30%, " + alpha(b.color, 1) + ", " + shade(b.color, -25) + ")"
+        background: empty ? "radial-gradient(circle at 35% 30%, #555, #333, #111)" : "radial-gradient(circle at 35% 30%, " + b.grad[0] + ", " + b.grad[1] + ", " + b.grad[2] + ")",
+        /* 4 box-shadows empilés : cerclage blanc + cerclage couleur
+           + ombre 3D inférieure + glow néon (look exact Tetroid). */
+        boxShadow: empty ? "0 0 0 3px #fff, 0 0 0 6px #555, 0 6px 0 #111, 0 8px 16px rgba(0,0,0,0.5)" : "0 0 0 3px #fff, " + "0 0 0 6px " + b.ring + ", " + "0 6px 0 " + b.shadow3d + ", " + "0 8px 16px " + b.glow
       },
       "aria-label": b.label + " booster"
     }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        ...SBB.icon,
-        filter: empty ? "grayscale(0.85) opacity(0.6)" : "drop-shadow(0 2px 2px rgba(0,0,0,0.5))"
-      }
+      style: SBB.shineMain
+    }), /*#__PURE__*/React.createElement("span", {
+      style: SBB.shineDot
+    }), /*#__PURE__*/React.createElement("span", {
+      style: SBB.icon
     }, b.icon), empty ? /*#__PURE__*/React.createElement("span", {
       style: SBB.plusBadge
     }, "+") : /*#__PURE__*/React.createElement("span", {
-      style: {
-        ...SBB.countBadge,
-        background: "linear-gradient(180deg, " + b.color + ", " + shade(b.color, -30) + ")"
-      }
+      style: SBB.countBadge
     }, count), onCD && /*#__PURE__*/React.createElement("span", {
       style: SBB.cdOverlay
-    }, Math.ceil(cooldown / 1000), "s"));
+    }, Math.ceil(cooldown / 1000), "s")), /*#__PURE__*/React.createElement("span", {
+      style: SBB.label
+    }, b.label));
   }));
 }
 
-/* ─── Helpers couleur ─────────────────────────────────────────── */
-function alpha(hex, a) {
-  // hex (#rrggbb ou #rgb) → rgba(...)
-  if (!hex || hex[0] !== "#") return `rgba(124,58,237,${a})`;
-  let h = hex.slice(1);
-  if (h.length === 3) h = h.split("").map(c => c + c).join("");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}
-function shade(hex, amount) {
-  // Décale le hex de `amount` (-100..+100). Négatif = plus sombre.
-  if (!hex || hex[0] !== "#") return hex;
-  let h = hex.slice(1);
-  if (h.length === 3) h = h.split("").map(c => c + c).join("");
-  const r = clamp(parseInt(h.slice(0, 2), 16) + amount, 0, 255);
-  const g = clamp(parseInt(h.slice(2, 4), 16) + amount, 0, 255);
-  const b = clamp(parseInt(h.slice(4, 6), 16) + amount, 0, 255);
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-function clamp(n, lo, hi) {
-  return Math.max(lo, Math.min(hi, n));
-}
-function toHex(n) {
-  return n.toString(16).padStart(2, "0");
-}
-
-/* ─── Styles : boutons CIRCULAIRES style arcade Tetroid ─────── */
+/* ─── Styles : reproduction exacte boosters.css Tetroid ─────── */
 const SBB = {
+  /* Container : fond violet foncé avec bordure haut violet vif (Tetroid) */
   root: {
     display: "flex",
-    gap: 14,
-    padding: "12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px)",
-    justifyContent: "center",
+    justifyContent: "space-evenly",
     alignItems: "center",
-    background: "linear-gradient(180deg, transparent, rgba(0,0,0,0.4))"
+    padding: "10px 4px calc(env(safe-area-inset-bottom, 0px) + 12px)",
+    background: "linear-gradient(180deg, #4a1a6e 0%, #2d0f4a 100%)",
+    borderTop: "4px solid #8b2fc9",
+    boxShadow: "inset 0 1px 0 rgba(180,80,255,0.3), 0 -2px 10px rgba(0,0,0,0.5)",
+    flexShrink: 0
   },
-  btn: {
-    /* CERCLE arcade : 78px de diamètre, bordure épaisse colorée,
-       halo extérieur, ombre 3D inférieure pour relief bouton physique. */
-    width: 78,
-    height: 78,
+  /* Wrapper bonbon + label */
+  bb: {
+    flex: 1,
+    maxWidth: "25%",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 0,
+    cursor: "pointer",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    padding: "2px 0"
+  },
+  /* Le bonbon (cercle) */
+  bi: {
+    /* clamp : 44px → 11vw → 56px max (responsive comme Tetroid) */
+    width: "clamp(44px, 11vw, 56px)",
+    height: "clamp(44px, 11vw, 56px)",
     borderRadius: "50%",
-    border: "3px solid",
+    border: "none",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontFamily: "'Lilita One', cursive",
-    color: "#fff",
+    fontSize: "clamp(1.2rem, 4vw, 1.55rem)",
     position: "relative",
-    transition: "transform 0.08s ease, box-shadow 0.08s ease"
-    /* Pas de padding : le contenu (icon) est centré pile par flex.
-       Le compteur sort en absolute par-dessus en bas-droite. */
+    overflow: "visible",
+    transform: "translateZ(0)",
+    transition: "transform 0.12s, box-shadow 0.12s",
+    isolation: "isolate",
+    padding: 0
   },
+  /* Reflet principal (bulle verre) en haut-gauche */
+  shineMain: {
+    position: "absolute",
+    top: "8%",
+    left: "10%",
+    width: "46%",
+    height: "30%",
+    background: "linear-gradient(135deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)",
+    borderRadius: "50%",
+    transform: "rotate(-15deg)",
+    pointerEvents: "none",
+    zIndex: 1
+  },
+  /* Petit point brillant (genre highlight glass) */
+  shineDot: {
+    position: "absolute",
+    top: "11%",
+    left: "19%",
+    width: "13%",
+    height: "13%",
+    background: "rgba(255,255,255,0.95)",
+    borderRadius: "50%",
+    pointerEvents: "none",
+    zIndex: 2
+  },
+  /* Icône emoji centrale */
   icon: {
-    /* Icône XL au centre du cercle */
-    fontSize: 36,
+    position: "relative",
+    zIndex: 3,
+    fontSize: "clamp(1.4rem, 4.5vw, 1.75rem)",
     lineHeight: 1,
     filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.5))"
   },
-  /* Badge compteur — pastille bottom-right qui dépasse du cercle */
+  /* Badge compteur vert Tetroid (radial gradient) */
   countBadge: {
     position: "absolute",
-    bottom: -2,
-    right: -2,
-    minWidth: 26,
-    height: 26,
-    borderRadius: 13,
-    background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
-    border: "2px solid #fff",
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 800,
+    bottom: -4,
+    right: -4,
+    background: "radial-gradient(circle at 35% 30%, #80ff80, #20c020, #107010)",
+    border: "1.5px solid #fff",
+    borderRadius: "50%",
+    width: 20,
+    height: 20,
+    fontSize: "0.7rem",
+    fontWeight: 900,
+    fontFamily: "'Lilita One', sans-serif",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "0 6px",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.4)"
+    boxShadow: "0 2px 0 #085008, 0 3px 6px rgba(0,100,0,0.5)",
+    color: "#fff",
+    textShadow: "0 1px 2px rgba(0,60,0,0.8)",
+    zIndex: 10
   },
-  /* Badge "+" doré quand vide → click = boutique */
+  /* Badge "+" doré quand vide → renvoie au shop */
   plusBadge: {
     position: "absolute",
     bottom: -4,
     right: -4,
-    width: 28,
-    height: 28,
+    background: "radial-gradient(circle at 35% 30%, #ffec80, #ffd23f, #d97706)",
+    border: "1.5px solid #fff",
     borderRadius: "50%",
-    background: "linear-gradient(180deg, var(--gold), #d97706)",
-    border: "2px solid #fff",
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: 800,
+    width: 20,
+    height: 20,
+    fontSize: "0.85rem",
+    fontWeight: 900,
+    fontFamily: "'Lilita One', sans-serif",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0 2px 6px rgba(255,210,63,0.6)"
+    color: "#fff",
+    boxShadow: "0 2px 0 #92400e, 0 3px 6px rgba(217,119,6,0.5)",
+    zIndex: 10
   },
-  /* Overlay cooldown circulaire */
+  /* Cooldown overlay circulaire */
   cdOverlay: {
     position: "absolute",
-    inset: -3,
+    inset: 0,
     borderRadius: "50%",
     background: "rgba(0,0,0,0.65)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 18,
+    fontSize: 16,
     color: "#fff",
-    fontWeight: 800
+    fontWeight: 800,
+    zIndex: 20
+  },
+  /* Label sous le bonbon */
+  label: {
+    fontFamily: "'Lilita One', sans-serif",
+    fontSize: "0.6rem",
+    letterSpacing: 0.5,
+    color: "#e8b0ff",
+    textTransform: "uppercase",
+    textShadow: "0 1px 4px rgba(0,0,0,0.9)",
+    marginTop: 8,
+    display: "block"
   }
 };
 window.BoosterButtons = BoosterButtons;

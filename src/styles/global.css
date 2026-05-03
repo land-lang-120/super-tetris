@@ -125,6 +125,11 @@ body::after {
     0 4px 8px rgba(0,0,0,0.35),
     inset 0 2px 0 rgba(255,255,255,0.3);
 }
+
+/* Animation tap pour les bonbons booster (style Tetroid : presse 3D) */
+.st-candy:active:not(:disabled) {
+  transform: scale(0.88) translateY(3px) translateZ(0) !important;
+}
 .btn-3d.purple {
   background: linear-gradient(180deg, var(--purple-l), var(--purple));
   box-shadow: 0 4px 0 var(--purple-d), 0 8px 16px rgba(0,0,0,0.35), inset 0 2px 0 rgba(255,255,255,0.3);
