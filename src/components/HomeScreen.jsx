@@ -45,11 +45,15 @@ function HomeScreen({ profile, onNavigate }) {
           </div>
         </div>
 
-        <div style={SH.rankBadge}>
-          <span style={SH.rankIcon}>{rank.icon}</span>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", lineHeight:1.1 }}>
-            <span style={SH.rankTitle}>{rank.title}</span>
-            <span style={SH.rankXP}>{formatNum(xp)} XP</span>
+        {/* Wrapper flex : double-ceinture pour garantir le centrage,
+            même si le navigateur a un bug d'interprétation grid auto. */}
+        <div style={{ display:"flex", justifyContent:"center", justifySelf:"center" }}>
+          <div style={SH.rankBadge}>
+            <span style={SH.rankIcon}>{rank.icon}</span>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", lineHeight:1.1 }}>
+              <span style={SH.rankTitle}>{rank.title}</span>
+              <span style={SH.rankXP}>{formatNum(xp)} XP</span>
+            </div>
           </div>
         </div>
 

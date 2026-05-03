@@ -2714,6 +2714,12 @@ function HomeScreen({
     style: SH.coinPlus,
     "aria-label": "Acheter des pi\xE8ces"
   }, "+"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "center",
+      justifySelf: "center"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     style: SH.rankBadge
   }, /*#__PURE__*/React.createElement("span", {
     style: SH.rankIcon
@@ -2728,7 +2734,7 @@ function HomeScreen({
     style: SH.rankTitle
   }, rank.title), /*#__PURE__*/React.createElement("span", {
     style: SH.rankXP
-  }, formatNum(xp), " XP"))), /*#__PURE__*/React.createElement("div", {
+  }, formatNum(xp), " XP")))), /*#__PURE__*/React.createElement("div", {
     style: {
       justifySelf: "end"
     }
