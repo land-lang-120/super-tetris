@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "super-tetris",
+  "compatibility_date": "2026-05-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": ".",
+    // SPA fallback : toutes les routes inconnues servent index.html
+    // (équivalent du _redirects "/* /index.html 200" mais sans la
+    //  boucle infinie détectée par le validateur Workers).
+    "not_found_handling": "single-page-application"
+  }
+}

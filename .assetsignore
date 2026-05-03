@@ -1,12 +1,33 @@
+# Fichiers à ne PAS uploader publiquement sur Cloudflare
+# (le bundle.js compilé contient déjà tout ce dont l'app a besoin)
+
 node_modules
+.wrangler
 .git
 .github
+.claude
 .vscode
 .idea
 *.log
 .DS_Store
+
+# Build/dev tooling — pas besoin sur le serveur
 build.js
 package.json
 package-lock.json
+bun.lock
 bun.lockb
 yarn.lock
+wrangler.jsonc
+
+# Doc — privée
+CAHIER-CHARGES.md
+README.md
+
+# Sources JS/JSX déjà inclues dans bundle.js — pas besoin de servir le brut.
+# (On garde src/styles/*.css car chargés par <link> dans index.html)
+src/components
+src/game
+src/hooks
+src/App.jsx
+src/main.jsx
