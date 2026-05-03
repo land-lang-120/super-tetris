@@ -32,6 +32,8 @@ const FILES = [
   'src/game/audio.js',
   'src/game/haptics.js',
   'src/game/particles.js',
+  // Musique iconique Korobeiniki (port de Tetroid) — v1.8
+  'src/game/music.js',
   // Boosters (logique fonctionnelle des 4 boosters consommables)
   'src/game/boosters.js',
 

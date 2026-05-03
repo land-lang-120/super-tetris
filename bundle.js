@@ -897,20 +897,28 @@
       if (!AC) return null;
       ctx = new AC();
       initialized = true;
-      // Resume on first user gesture (mobile autoplay policy)
+      // ─── Resume on user gesture (mobile + desktop autoplay policy)
+      // Listeners NON-once : tant que le AC est en suspended, chaque
+      // gesture utilisateur le tente. Auto-désinstallation dès running.
       var resume = function () {
-        if (ctx.state === "suspended") ctx.resume().catch(function () {});
+        if (!ctx) return;
+        if (ctx.state === "suspended") {
+          ctx.resume().then(function () {
+            if (ctx.state === "running") {
+              document.removeEventListener("touchstart", resume);
+              document.removeEventListener("click", resume);
+              document.removeEventListener("keydown", resume);
+              document.removeEventListener("pointerdown", resume);
+            }
+          }).catch(function () {});
+        }
       };
       document.addEventListener("touchstart", resume, {
-        once: true,
         passive: true
       });
-      document.addEventListener("click", resume, {
-        once: true
-      });
-      document.addEventListener("keydown", resume, {
-        once: true
-      });
+      document.addEventListener("click", resume);
+      document.addEventListener("keydown", resume);
+      document.addEventListener("pointerdown", resume);
       return ctx;
     } catch (_) {
       return null;
@@ -939,6 +947,14 @@
     var c = getCtx();
     if (!c) return;
     try {
+      // ─── Fix v1.7 : force le resume du AC à CHAQUE tone() s'il est
+      // suspended. Le listener once() peut rater le tout premier gesture
+      // (race condition) et laisser le AC bloqué muet pour toujours.
+      // Comme tone() est forcément appelé depuis un event handler user
+      // (move/rotate/lock/etc.), le browser autorise resume() ici.
+      if (c.state === "suspended" && typeof c.resume === "function") {
+        c.resume().catch(function () {});
+      }
       var osc = c.createOscillator();
       var gain = c.createGain();
       osc.type = type || "sine";
@@ -1116,7 +1132,8 @@
     play: play,
     SFX: SFX,
     tone: tone,
-    sequence: sequence
+    sequence: sequence,
+    getCtx: getCtx // exposé pour STMusic (partage du AudioContext)
   };
 })();
 
@@ -1368,39 +1385,345 @@
 
 /* ─────────────────────────────────────────────────────────── */
 
+/* === src/game/music.js === */
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════
+   Super Tetris — Musique iconique (port de Tetroid audio.js)
+   ═══════════════════════════════════════════════════════════════════
+   Séquenceur Web Audio API qui joue le THÈME ICONIQUE de Tetris
+   (Korobeiniki) en boucle, avec :
+     - Mélodie principale (square + sine octave) — séquence MUSIC_SEQ
+     - Ligne de basse (triangle wave) — BASS_PATTERN sur 8 mesures
+     - Percussion (kick / snare / hat) — pattern 4/4
+
+   Architecture :
+     - BPM 158, scheduler avec lookahead 0.1s (toutes les 25ms)
+     - Indépendant du toggle "sound" (a son propre toggle "music")
+     - Réutilise window.STAudio.getCtx() pour partager l'AudioContext
+     - Auto-resume du AC sur user gesture
+
+   API :
+     window.STMusic = {
+       start(),    // démarre la boucle
+       stop(),     // arrête + clear interval
+       toggle(on), // bascule + persist setting
+       isOn()      // lit le setting (default true)
+     }
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  // ─── Config musicale ──────────────────────────────────────────
+  var M_BPM = 158;
+  var M_BEAT = 60 / M_BPM;
+  var M_E = M_BEAT / 2;
+
+  // Notes (Hz) — gamme piano
+  var MN = {
+    E2: 82,
+    B2: 123,
+    A2: 110,
+    C3: 131,
+    D3: 147,
+    E3: 165,
+    G3: 196,
+    A3: 220,
+    B3: 247,
+    C4: 262,
+    D4: 294,
+    E4: 330,
+    F4: 349,
+    G4: 392,
+    A4: 440,
+    B4: 494,
+    C5: 523,
+    D5: 587,
+    E5: 659,
+    F5: 698,
+    G5: 784,
+    A5: 880
+  };
+
+  /** Construit la séquence Korobeiniki (Tetris Theme A). */
+  function buildSequence() {
+    var Q = M_BEAT,
+      E = M_E;
+    var seq = [];
+    function m(f, d) {
+      seq.push({
+        mf: MN[f] || 0,
+        md: d
+      });
+    }
+    function r(d) {
+      seq.push({
+        mf: 0,
+        md: d
+      });
+    }
+    m('E5', Q);
+    m('B4', E);
+    m('C5', E);
+    m('D5', Q);
+    m('C5', E);
+    m('B4', E);
+    m('A4', Q);
+    m('A4', E);
+    m('C5', E);
+    m('E5', Q);
+    m('D5', E);
+    m('C5', E);
+    m('B4', Q);
+    m('C5', E);
+    m('D5', E);
+    m('E5', Q);
+    m('C5', Q);
+    m('A4', Q);
+    m('A4', Q);
+    r(M_BEAT * 2);
+    r(E);
+    m('D5', E);
+    m('F5', Q);
+    m('A5', Q);
+    m('G5', E);
+    m('F5', E);
+    m('E5', Q);
+    m('C5', E);
+    m('E5', E);
+    m('D5', Q);
+    m('C5', Q);
+    m('B4', Q);
+    m('B4', E);
+    m('C5', E);
+    m('D5', Q);
+    r(Q);
+    m('E5', Q);
+    m('C5', Q);
+    m('A4', Q);
+    r(Q);
+    return seq;
+  }
+  var MUSIC_SEQ = buildSequence();
+
+  // Ligne de basse : 8 mesures (cycle complet)
+  var BASS_PATTERN = [[MN.A2, MN.E3, MN.A3, MN.E3, MN.A2, MN.E3, MN.A3, MN.E3], [MN.A2, MN.E3, MN.A3, MN.E3, MN.A2, MN.E3, MN.A3, MN.E3], [MN.C3, MN.G3, MN.C3, MN.G3, MN.C3, MN.G3, MN.C3, MN.G3], [MN.C3, MN.G3, MN.C3, MN.G3, MN.C3, MN.G3, MN.C3, MN.G3], [MN.G3, MN.D3, MN.G3, MN.D3, MN.G3, MN.D3, MN.G3, MN.D3], [MN.G3, MN.D3, MN.G3, MN.D3, MN.G3, MN.D3, MN.G3, MN.D3], [MN.E2, MN.B2, MN.E3, MN.B2, MN.E2, MN.B2, MN.E3, MN.B2], [MN.A2, MN.E3, MN.A3, MN.E3, MN.A2, MN.E3, MN.A3, MN.E3]];
+  var LOOKAHEAD = 0.1; // secondes : on planifie 100ms à l'avance
+  var SCHEDULE_MS = 25; // ms : cadence du scheduler
+
+  // ─── État interne ─────────────────────────────────────────────
+  var state = {
+    playing: false,
+    interval: null,
+    ctx: null,
+    schedIdx: 0,
+    schedTime: 0,
+    nextNoteTime: 0
+  };
+
+  /** Récupère l'AudioContext partagé avec STAudio (ou en crée un). */
+  function getCtx() {
+    // Réutilise STAudio si présent (même AC = pas de conflit)
+    if (window.STAudio && typeof window.STAudio.getCtx === "function") {
+      return window.STAudio.getCtx();
+    }
+    if (state.ctx) return state.ctx;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      state.ctx = new AC();
+      return state.ctx;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /** Lit le setting musique (default ON). */
+  function isOn() {
+    try {
+      var raw = localStorage.getItem("st_settings");
+      if (!raw) return true;
+      var s = JSON.parse(raw);
+      return s && s.music !== false;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /** Bascule + persist le setting. */
+  function toggle(on) {
+    try {
+      var raw = localStorage.getItem("st_settings");
+      var s = raw ? JSON.parse(raw) : {};
+      s.music = !!on;
+      localStorage.setItem("st_settings", JSON.stringify(s));
+    } catch (_) {}
+    if (on) start();else stop();
+  }
+
+  // ─── Synthèse : note mélodie / drum ───────────────────────────
+  function note(freq, type, vol, when, dur) {
+    var c = getCtx();
+    if (!c) return;
+    try {
+      var o = c.createOscillator();
+      var g = c.createGain();
+      o.connect(g);
+      g.connect(c.destination);
+      o.type = type;
+      o.frequency.setValueAtTime(freq, when);
+      g.gain.setValueAtTime(vol, when);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      o.start(when);
+      o.stop(when + dur + 0.01);
+    } catch (_) {}
+  }
+  function drum(type, vol, when) {
+    var c = getCtx();
+    if (!c) return;
+    try {
+      if (type === "kick") {
+        var o = c.createOscillator();
+        var g = c.createGain();
+        o.connect(g);
+        g.connect(c.destination);
+        o.type = "sine";
+        o.frequency.setValueAtTime(150, when);
+        o.frequency.exponentialRampToValueAtTime(40, when + 0.07);
+        g.gain.setValueAtTime(vol, when);
+        g.gain.exponentialRampToValueAtTime(0.0001, when + 0.1);
+        o.start(when);
+        o.stop(when + 0.11);
+      } else {
+        var sr = c.sampleRate;
+        var len = Math.floor(sr * (type === "snare" ? 0.08 : 0.02));
+        var buf = c.createBuffer(1, len, sr);
+        var d = buf.getChannelData(0);
+        for (var i = 0; i < len; i++) {
+          d[i] = (Math.random() * 2 - 1) * (1 - i / len) * (type === "snare" ? 0.25 : 0.12);
+        }
+        var s = c.createBufferSource();
+        var g2 = c.createGain();
+        s.buffer = buf;
+        s.connect(g2);
+        g2.connect(c.destination);
+        g2.gain.setValueAtTime(vol, when);
+        s.start(when);
+      }
+    } catch (_) {}
+  }
+
+  // ─── Scheduler ────────────────────────────────────────────────
+  function scheduleTick() {
+    if (!state.playing) return;
+    var c = getCtx();
+    if (!c) return;
+    var now = c.currentTime;
+    while (state.nextNoteTime < now + LOOKAHEAD) {
+      var step = MUSIC_SEQ[state.schedIdx];
+      // Mélodie : square principal + sine 1 octave au-dessus (brillance)
+      if (step.mf > 0) {
+        note(step.mf, "square", 0.07, state.nextNoteTime, step.md * 0.82);
+        note(step.mf * 2, "sine", 0.02, state.nextNoteTime, step.md * 0.82);
+      }
+      // Basse (BASS_PATTERN par bar de 8 croches)
+      var beatN = Math.round((state.nextNoteTime - state.schedTime) / M_E);
+      var barN = Math.floor(beatN / 8);
+      var beatInBar = beatN % 8;
+      var bassBar = BASS_PATTERN[barN % BASS_PATTERN.length];
+      if (bassBar && beatInBar < 8) {
+        note(bassBar[beatInBar], "triangle", 0.11, state.nextNoteTime, M_E * 0.70);
+      }
+      // Percussion (kick / snare / hat)
+      var beatIn4 = Math.round((state.nextNoteTime - state.schedTime) / M_BEAT) % 4;
+      var isDownbeat = Math.abs((state.nextNoteTime - state.schedTime) % M_BEAT) < 0.012;
+      if (isDownbeat) {
+        if (beatIn4 === 0 || beatIn4 === 2) drum("kick", 0.22, state.nextNoteTime);
+        if (beatIn4 === 1 || beatIn4 === 3) drum("snare", 0.16, state.nextNoteTime);
+        if (beatIn4 === 0) drum("kick", 0.13, state.nextNoteTime + M_E * 0.5);
+      }
+      var isEighth = Math.abs((state.nextNoteTime - state.schedTime) % M_E) < 0.006;
+      if (isEighth) drum("hat", 0.07, state.nextNoteTime);
+      state.nextNoteTime += step.md;
+      state.schedIdx++;
+
+      // Boucle infinie : on revient au début de la séquence
+      if (state.schedIdx >= MUSIC_SEQ.length) {
+        state.schedIdx = 0;
+        state.schedTime = state.nextNoteTime;
+      }
+    }
+  }
+
+  // ─── API publique ─────────────────────────────────────────────
+  function start() {
+    if (state.playing || !isOn()) return;
+    var c = getCtx();
+    if (!c) return;
+    if (c.state === "suspended" && typeof c.resume === "function") {
+      c.resume().catch(function () {});
+    }
+    state.playing = true;
+    state.schedIdx = 0;
+    state.schedTime = c.currentTime;
+    state.nextNoteTime = c.currentTime + 0.05;
+    state.interval = setInterval(scheduleTick, SCHEDULE_MS);
+  }
+  function stop() {
+    state.playing = false;
+    if (state.interval) {
+      clearInterval(state.interval);
+      state.interval = null;
+    }
+  }
+  function isPlaying() {
+    return state.playing;
+  }
+  window.STMusic = {
+    start: start,
+    stop: stop,
+    toggle: toggle,
+    isOn: isOn,
+    isPlaying: isPlaying
+  };
+})();
+
+/* ─────────────────────────────────────────────────────────── */
+
 /* === src/game/boosters.js === */
 "use strict";
 
 /* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — Boosters logic (4 boosters jouables)
+   Super Tetris — Boosters logic v2 (port FIDÈLE de Tetroid)
    ═══════════════════════════════════════════════════════════════════
-   Logique fonctionnelle des 4 boosters consommables. Toutes les
-   fonctions PRENNENT et RETOURNENT un nouveau game state (immutables
-   pour faciliter intégration React + undo éventuel).
+   Reproduction exacte des mécaniques Tetroid (tetroid-pro/js/boosters.js)
+   adaptées à notre architecture pure-functions.
 
-   Boosters :
-     ❄️ FREEZE  : suspend la gravité pendant 15000ms (15s)
-                  → met G.freezeUntil = now + 15000
-                  → le tick gameLoop respecte ce flag (gravité = 0)
+   ❄️ FREEZE  (15s)
+     → suspend la gravité (G.freezeUntil = now + 15000)
 
-     ⚡ LASER   : détruit la ligne la plus basse non vide
-                  → trouve la ligne, la vide, ne la décale pas (juste vide)
-                  → ajoute particles + sound + haptic
+   ⚡ LASER   (jusqu'à 4 lignes !)
+     → trouve les 4 lignes les plus basses NON VIDES
+     → les efface complètement
+     → APPLIQUE LA GRAVITÉ pour faire tomber les blocs au-dessus
+     → score : +12 par cellule effacée
 
-     ☄️ METEOR  : détruit 5 cellules aléatoires non vides
-                  → choisit 5 positions occupées au hasard
-                  → particles d'impact à chacune
-                  → shockwave central
+   ☄️ METEOR  (1 météore par colonne = 10 impacts !)
+     → pour chaque colonne (gauche → droite avec delay 80ms)
+       * détruit 3 cellules verticales depuis le top de la pile
+       * applique gravité dans cette colonne (compresse vers le bas)
+     → score : +15 par cellule détruite
 
-     🧲 MAGNET  : attire les blocs vers le bas (gravity sweep)
-                  → pour chaque colonne, fait tomber les blocs en haut
-                  → ferme les "trous" laissés par des poses imparfaites
-                  → gros bonus stratégique pour rétablir une situation
-                    catastrophique
+   🧲 MAGNET (gravité totale)
+     → applique gravity par PASSES successives jusqu'à stabilité
+     → entre chaque passe : clear des lignes pleines créées
+     → score : +8 par brique déplacée
 
-   Cooldowns par défaut : 5s entre 2 utilisations du même booster.
-
-   Constantes exposées : COOLDOWNS, DURATIONS
+   API :
+     applyFreeze(G) → G
+     applyLaser(G)  → { grid, lines: [indices], cells: int }
+     applyMeteor(G) → { grid, columns: [{col, hits: int}] }
+     applyMagnet(G) → { grid, cellsMoved: int, linesCleared: int }
+     applyGravity(grid) → { grid, moved: int }   (helper utility)
    ═══════════════════════════════════════════════════════════════════ */
 
 (function () {
@@ -1412,152 +1735,225 @@
     magnet: 8000
   };
   var DURATIONS = {
-    freeze: 15000 // ms d'immobilisation gravité (15s)
+    freeze: 15000
+  };
+  var LASER_MAX_LINES = 4;
+  var METEOR_DEPTH = 3;
+  var SCORE = {
+    laser: 12,
+    meteor: 15,
+    magnet: 8
   };
 
+  /** Helper interne : clone profond d'une grille. */
+  function cloneGrid(grid) {
+    var g = new Array(grid.length);
+    for (var r = 0; r < grid.length; r++) g[r] = grid[r].slice();
+    return g;
+  }
+
   /**
-   * FREEZE — suspend la gravité pendant DURATIONS.freeze ms.
-   * Mute G.freezeUntil. Le game loop check ce flag.
+   * ─── GRAVITY (fondamental) ────────────────────────────────────
+   * Applique la gravité à la grille : tout bloc qui a une cellule
+   * vide en dessous descend d'une rangée. Multi-passes jusqu'à
+   * stabilité. Retourne le nb total de cellules déplacées.
+   */
+  function applyGravity(grid) {
+    var rows = grid.length;
+    var cols = (grid[0] || []).length;
+    var totalMoved = 0;
+    var changed = true;
+    var safety = 0;
+    while (changed && safety < rows * 2) {
+      changed = false;
+      // De bas en haut : on bouge un bloc d'1 case si la case du dessous est vide
+      for (var r = rows - 2; r >= 0; r--) {
+        for (var c = 0; c < cols; c++) {
+          if (grid[r][c] && !grid[r + 1][c]) {
+            grid[r + 1][c] = grid[r][c];
+            grid[r][c] = 0;
+            changed = true;
+            totalMoved++;
+          }
+        }
+      }
+      safety++;
+    }
+    return totalMoved;
+  }
+
+  /**
+   * ─── CLEAR LINES (silent) ─────────────────────────────────────
+   * Retire les lignes pleines + décale le reste vers le bas.
+   * Retourne le nb de lignes effacées.
+   * Note : on a aussi STCore.clearLines() mais ici version "silent"
+   * (sans gestion combo/scoring) pour être appelé après gravity.
+   */
+  function clearLinesSilent(grid) {
+    var rows = grid.length;
+    var cols = (grid[0] || []).length;
+    var newRows = [];
+    var clearedCount = 0;
+    for (var r = 0; r < rows; r++) {
+      var full = true;
+      for (var c = 0; c < cols; c++) {
+        if (!grid[r][c]) {
+          full = false;
+          break;
+        }
+      }
+      if (full) clearedCount++;else newRows.push(grid[r].slice());
+    }
+    while (newRows.length < rows) newRows.unshift(new Array(cols).fill(0));
+    // copie back dans la même référence
+    for (var rr = 0; rr < rows; rr++) grid[rr] = newRows[rr];
+    return clearedCount;
+  }
+
+  /**
+   * ❄️ FREEZE — suspend la gravité 15s.
    */
   function applyFreeze(G) {
     if (!G) return G;
-    var now = Date.now();
-    G.freezeUntil = now + DURATIONS.freeze;
+    G.freezeUntil = Date.now() + DURATIONS.freeze;
     return G;
   }
-
-  /** Renvoie true si la gravité doit être suspendue MAINTENANT. */
   function isFrozen(G) {
-    if (!G || !G.freezeUntil) return false;
-    return Date.now() < G.freezeUntil;
+    return !!(G && G.freezeUntil && Date.now() < G.freezeUntil);
   }
 
   /**
-   * LASER — détruit la ligne la plus basse occupée (vidée, pas supprimée).
-   * Retourne { grid, line: index }. Si pas de ligne, line = -1.
+   * ⚡ LASER — efface jusqu'à 4 lignes les plus basses + gravity.
+   * Retourne { grid, lines: indices effacés, cells: nb cellules effacées }.
    */
   function applyLaser(G) {
     if (!G || !G.grid) return {
       grid: G && G.grid,
-      line: -1
+      lines: [],
+      cells: 0
     };
-    var grid = window.STCore.cloneGrid(G.grid);
+    var grid = cloneGrid(G.grid);
     var rows = grid.length;
     var cols = (grid[0] || []).length;
 
-    // Cherche la ligne la plus basse avec au moins une cellule
-    var targetLine = -1;
-    for (var r = rows - 1; r >= 0; r--) {
-      var hasCell = false;
+    // Chercher les LASER_MAX_LINES lignes les plus basses NON vides
+    var targets = [];
+    for (var r = rows - 1; r >= 0 && targets.length < LASER_MAX_LINES; r--) {
       for (var c = 0; c < cols; c++) {
         if (grid[r][c]) {
-          hasCell = true;
+          targets.push(r);
           break;
         }
       }
-      if (hasCell) {
-        targetLine = r;
-        break;
+    }
+    var totalCells = 0;
+    targets.forEach(function (row) {
+      for (var x = 0; x < cols; x++) {
+        if (grid[row][x]) totalCells++;
+        grid[row][x] = 0;
       }
-    }
-    if (targetLine >= 0) {
-      for (var x = 0; x < cols; x++) grid[targetLine][x] = 0;
-      G.grid = grid;
-    }
+    });
+
+    // GRAVITY après clear (sinon les blocs au-dessus restent suspendus !)
+    applyGravity(grid);
+    G.grid = grid;
+    G.score = (G.score || 0) + totalCells * SCORE.laser;
     return {
-      grid: G.grid,
-      line: targetLine
+      grid: grid,
+      lines: targets,
+      cells: totalCells
     };
   }
 
   /**
-   * METEOR — détruit 5 cellules aléatoires occupées.
-   * Retourne { grid, cells: [{x,y}] }.
+   * ☄️ METEOR — 1 météore par colonne, détruit 3 cellules vert. + gravity.
+   * Retourne { grid, columns: [{col, hits}], totalCells }.
    */
-  function applyMeteor(G, count) {
-    count = count || 5;
+  function applyMeteor(G) {
     if (!G || !G.grid) return {
       grid: G && G.grid,
-      cells: []
+      columns: [],
+      totalCells: 0
     };
-    var grid = window.STCore.cloneGrid(G.grid);
+    var grid = cloneGrid(G.grid);
     var rows = grid.length;
     var cols = (grid[0] || []).length;
-
-    // Récupère toutes les cellules occupées
-    var occupied = [];
-    for (var r = 0; r < rows; r++) {
-      for (var c = 0; c < cols; c++) {
-        if (grid[r][c]) occupied.push({
-          x: c,
-          y: r
-        });
+    var columns = [];
+    var totalCells = 0;
+    for (var c = 0; c < cols; c++) {
+      // Trouve le top de la pile dans cette colonne
+      var topRow = -1;
+      for (var r = 0; r < rows; r++) {
+        if (grid[r][c]) {
+          topRow = r;
+          break;
+        }
       }
+      if (topRow < 0) {
+        columns.push({
+          col: c,
+          hits: 0,
+          topRow: -1
+        });
+        continue;
+      }
+      // Détruit jusqu'à METEOR_DEPTH cellules vers le bas
+      var hits = 0;
+      for (var dr = 0; dr < METEOR_DEPTH; dr++) {
+        var rr = topRow + dr;
+        if (rr < rows && grid[rr][c]) {
+          grid[rr][c] = 0;
+          hits++;
+          totalCells++;
+        }
+      }
+      columns.push({
+        col: c,
+        hits: hits,
+        topRow: topRow
+      });
     }
-    if (occupied.length === 0) return {
-      grid: G.grid,
-      cells: []
-    };
 
-    // Shuffle Fisher-Yates et prend les `count` premières
-    for (var i = occupied.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var tmp = occupied[i];
-      occupied[i] = occupied[j];
-      occupied[j] = tmp;
-    }
-    var hits = occupied.slice(0, Math.min(count, occupied.length));
-    hits.forEach(function (cell) {
-      grid[cell.y][cell.x] = 0;
-    });
+    // GRAVITY pour compresser les colonnes vers le bas
+    applyGravity(grid);
     G.grid = grid;
+    G.score = (G.score || 0) + totalCells * SCORE.meteor;
     return {
-      grid: G.grid,
-      cells: hits
+      grid: grid,
+      columns: columns,
+      totalCells: totalCells
     };
   }
 
   /**
-   * MAGNET — fait tomber tous les blocs vers le bas, colonne par colonne,
-   * pour combler les trous. Très utile sur des grids "gruyère".
-   * Retourne { grid, cellsMoved }.
+   * 🧲 MAGNET — gravity multi-passes + clear lignes pleines.
+   * Retourne { grid, cellsMoved, linesCleared }.
    */
   function applyMagnet(G) {
     if (!G || !G.grid) return {
       grid: G && G.grid,
-      cellsMoved: 0
+      cellsMoved: 0,
+      linesCleared: 0
     };
-    var grid = window.STCore.cloneGrid(G.grid);
-    var rows = grid.length;
-    var cols = (grid[0] || []).length;
-    var moved = 0;
-    for (var c = 0; c < cols; c++) {
-      // Récupère toutes les cellules non vides de cette colonne, en partant du bas
-      var stack = [];
-      for (var r = rows - 1; r >= 0; r--) {
-        if (grid[r][c]) {
-          stack.push(grid[r][c]);
-          grid[r][c] = 0;
-        }
-      }
-      // Réécrit en partant du bas
-      for (var k = 0; k < stack.length; k++) {
-        var newR = rows - 1 - k;
-        var oldVal = grid[newR][c];
-        if (!oldVal) moved++;
-        grid[newR][c] = stack[k];
-      }
+    var grid = cloneGrid(G.grid);
+    var moved = applyGravity(grid);
+    var linesCleared = clearLinesSilent(grid);
+    // Si lignes effacées → reapply gravity (cascade possible)
+    if (linesCleared > 0) {
+      moved += applyGravity(grid);
+      linesCleared += clearLinesSilent(grid);
     }
     G.grid = grid;
+    G.score = (G.score || 0) + moved * SCORE.magnet;
     return {
-      grid: G.grid,
-      cellsMoved: moved
+      grid: grid,
+      cellsMoved: moved,
+      linesCleared: linesCleared
     };
   }
 
   /**
-   * Centre approximatif (pixels) d'une cellule (col,row) selon cellSize.
-   * Utilisé pour positionner particles/shockwaves au bon endroit du canvas.
+   * Helper : pixel center d'une cellule (col, row) selon cellSize.
    */
   function cellCenterPx(col, row, cellSize) {
     return {
@@ -1568,11 +1964,14 @@
   window.STBoosters = {
     COOLDOWNS: COOLDOWNS,
     DURATIONS: DURATIONS,
+    LASER_MAX_LINES: LASER_MAX_LINES,
+    METEOR_DEPTH: METEOR_DEPTH,
     applyFreeze: applyFreeze,
     isFrozen: isFrozen,
     applyLaser: applyLaser,
     applyMeteor: applyMeteor,
     applyMagnet: applyMagnet,
+    applyGravity: applyGravity,
     cellCenterPx: cellCenterPx
   };
 })();
@@ -1702,7 +2101,7 @@ const {
   useEffect: useEffectST,
   useCallback: useCallbackST
 } = React;
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2; // v2 (v1.9) : reset boosters à 30 pour test Pino
 
 // Cache mémoire pour éviter les reads répétés
 const memCache = {};
@@ -1759,7 +2158,23 @@ function ensureSchema() {
     } else {
       const num = parseInt(v, 10);
       if (num < SCHEMA_VERSION) {
-        // Migrations futures à coder ici
+        // Migration v1 → v2 : reset boosters à 30 (test Pino)
+        if (num < 2) {
+          try {
+            const profileRaw = localStorage.getItem("st_profile");
+            if (profileRaw) {
+              const profile = JSON.parse(profileRaw);
+              profile.boosters = {
+                freeze: 30,
+                laser: 30,
+                meteor: 30,
+                magnet: 30
+              };
+              localStorage.setItem("st_profile", JSON.stringify(profile));
+              delete memCache["st_profile"]; // invalide cache
+            }
+          } catch (_) {}
+        }
         localStorage.setItem("st_v", String(SCHEMA_VERSION));
       }
     }
@@ -1836,21 +2251,22 @@ window.Starfield = function Starfield({
 "use strict";
 
 /* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — HUD (Heads-Up Display) v3
+   Super Tetris — HUD (Heads-Up Display) v4
    ═══════════════════════════════════════════════════════════════════
-   v3 (Pino 2026-05-03 #2) :
-     - LINES retiré (peu utile, redondant avec score)
-     - NEXT et HOLD intégrés dans la rangée des badges (au lieu d'une
-       3e rangée qui bouffait ~70px)
-     - Économie verticale → canvas + boosters plus grands
+   v4 (Pino #3 + #4) :
+     - Hero row SCORE/TIME SUPPRIMÉ (gagne ~80px verticaux)
+     - HUD = UNE SEULE rangée à 4 colonnes :
+       LVL | COMBO | NEXT | SCORE      (HOLD remplacé par SCORE)
+     - TIMER sort du HUD : devient flottant à GAUCHE du canvas
+       (à l'opposé des boutons pause/accueil qui sont à droite).
+       → Géré par GameScreen.jsx, pas ici.
 
-   Layout final :
-     ┌─────────────────────────────────────┐
-     │  SCORE 12 345  │  TIME  01:23       │  ← Hero row
-     ├──────┬─────────┬──────────┬─────────┤
-     │ LVL  │  COMBO  │   NEXT   │  HOLD   │  ← Mid row (4 cols)
-     │  3   │   ×2    │   ▣▣     │   ▣     │
-     └──────┴─────────┴──────────┴─────────┘
+   Layout final v4 :
+     ┌────────────────────────────────────────┐
+     │ LVL │ COMBO │  NEXT  │      SCORE      │  ← UNE rangée HUD
+     │  3  │  ×2   │  ▣▣    │     12 345      │
+     └────────────────────────────────────────┘
+        timer ←── canvas ──→ [⏸] [🏠]   (overlay flottant)
    ═══════════════════════════════════════════════════════════════════ */
 
 const {
@@ -1868,7 +2284,6 @@ function HUD({
   holdPiece
 }) {
   const nextCanvasRef = useRefHUD(null);
-  const holdCanvasRef = useRefHUD(null);
   useEffectHUD(() => {
     const cv = nextCanvasRef.current;
     if (!cv || !window.STRender) return;
@@ -1876,32 +2291,9 @@ function HUD({
     if (!ctx) return;
     window.STRender.drawMiniPiece(ctx, nextPiece || null, 10);
   }, [nextPiece]);
-  useEffectHUD(() => {
-    const cv = holdCanvasRef.current;
-    if (!cv || !window.STRender) return;
-    const ctx = cv.getContext("2d");
-    if (!ctx) return;
-    window.STRender.drawMiniPiece(ctx, holdPiece || null, 10);
-  }, [holdPiece]);
   return /*#__PURE__*/React.createElement("div", {
     style: SHUD.root
   }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.heroRow
-  }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.heroBlock
-  }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.heroLabel
-  }, "SCORE"), /*#__PURE__*/React.createElement("div", {
-    style: SHUD.scoreValue
-  }, formatNum(score))), /*#__PURE__*/React.createElement("div", {
-    style: SHUD.heroDivider
-  }), /*#__PURE__*/React.createElement("div", {
-    style: SHUD.heroBlock
-  }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.heroLabel
-  }, "TIME"), /*#__PURE__*/React.createElement("div", {
-    style: SHUD.timeValue
-  }, formatTime(time)))), /*#__PURE__*/React.createElement("div", {
     style: SHUD.midRow
   }, /*#__PURE__*/React.createElement(BadgeStat, {
     label: "LVL",
@@ -1914,9 +2306,11 @@ function HUD({
   }), /*#__PURE__*/React.createElement(BadgeMini, {
     label: "NEXT",
     ref_: nextCanvasRef
-  }), /*#__PURE__*/React.createElement(BadgeMini, {
-    label: "HOLD",
-    ref_: holdCanvasRef
+  }), /*#__PURE__*/React.createElement(BadgeStat, {
+    label: "SCORE",
+    value: formatNum(score),
+    color: "var(--gold)",
+    flex: 2
   })));
 }
 
@@ -1925,10 +2319,14 @@ function BadgeStat({
   label,
   value,
   color,
-  sub
+  sub,
+  flex
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    style: SHUD.badge
+    style: {
+      ...SHUD.badge,
+      flex: flex || 1
+    }
   }, /*#__PURE__*/React.createElement("div", {
     style: SHUD.badgeLabel
   }, label), /*#__PURE__*/React.createElement("div", {
@@ -1983,64 +2381,16 @@ const SHUD = {
     gap: 6,
     padding: "calc(env(safe-area-inset-top, 0px) + 8px) 10px 6px"
   },
-  /* ═══ HERO ROW (Score + Time très visible) ═══ */
-  heroRow: {
+  /* ═══ UNIQUE rangée v4 (Lvl / Combo / Next / Score) ═══ */
+  midRow: {
     display: "flex",
+    gap: 6,
     alignItems: "stretch",
     background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
     border: "1.5px solid var(--purple)",
     borderRadius: 14,
-    padding: "10px 16px",
+    padding: "8px 10px",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 0 rgba(0,0,0,0.3)"
-  },
-  heroBlock: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 0
-  },
-  heroDivider: {
-    width: 2,
-    background: "rgba(255,255,255,0.12)",
-    margin: "4px 12px",
-    borderRadius: 2
-  },
-  heroLabel: {
-    fontSize: 10,
-    fontWeight: 800,
-    color: "var(--sky)",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    marginBottom: 2
-  },
-  scoreValue: {
-    fontFamily: "'Lilita One', cursive",
-    fontSize: "clamp(22px, 6vw, 32px)",
-    color: "var(--gold)",
-    letterSpacing: 0.5,
-    textShadow: "0 2px 0 rgba(0,0,0,0.4), 0 0 12px rgba(255,210,63,0.4)",
-    lineHeight: 1.1,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    maxWidth: "100%"
-  },
-  timeValue: {
-    fontFamily: "'Lilita One', cursive",
-    fontSize: "clamp(22px, 6vw, 32px)",
-    color: "var(--sky)",
-    letterSpacing: 1,
-    textShadow: "0 2px 0 rgba(0,0,0,0.4), 0 0 12px rgba(56,189,248,0.4)",
-    lineHeight: 1.1,
-    whiteSpace: "nowrap"
-  },
-  /* ═══ MIDDLE ROW (Level / Combo / Lines) ═══ */
-  midRow: {
-    display: "flex",
-    gap: 6,
-    alignItems: "stretch"
   },
   badge: {
     flex: 1,
@@ -2051,19 +2401,25 @@ const SHUD = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
+    justifyContent: "center",
     minWidth: 0
   },
   badgeLabel: {
     fontSize: 9,
     fontWeight: 800,
     color: "rgba(255,255,255,0.65)",
-    letterSpacing: 1
+    letterSpacing: 1,
+    marginBottom: 2
   },
   badgeValue: {
     fontFamily: "'Lilita One', cursive",
-    fontSize: 18,
+    fontSize: 20,
     lineHeight: 1.1,
-    textShadow: "0 1px 0 rgba(0,0,0,0.4)"
+    textShadow: "0 1px 0 rgba(0,0,0,0.4), 0 0 8px currentColor",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: "100%"
   },
   badgeSub: {
     fontSize: 9,
@@ -2071,8 +2427,7 @@ const SHUD = {
     fontWeight: 700,
     marginTop: 1
   }
-
-  /* (v3) miniRow + miniCard supprimés : NEXT/HOLD intégrés dans midRow */
+  /* (v4) hero row + miniRow supprimés : layout consolidé en 1 rangée */
 };
 window.HUD = HUD;
 
@@ -2818,7 +3173,13 @@ function HomeScreen({
     style: SH.actionSide,
     "aria-label": "Classement"
   }, "\uD83D\uDCCA"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => onNavigate && onNavigate("game"),
+    onClick: () => {
+      // v1.7 : pré-warm AudioContext sur ce gesture user garanti
+      // (sinon le 1er son du jeu peut être muet à cause de la
+      // policy autoplay des navigateurs).
+      if (window.STAudio) window.STAudio.play("button");
+      if (onNavigate) onNavigate("game");
+    },
     className: "btn-3d",
     style: SH.playBtn
   }, "NEW GAME"), /*#__PURE__*/React.createElement("button", {
@@ -3266,6 +3627,15 @@ function GameScreen({
     gameRef.current = createInitialGameState();
   }
 
+  // ─── State UI (re-renders OK)
+  // ⚠ DOIT être déclaré AVANT les useEffect qui utilisent ces vars
+  // (sinon ReferenceError "Cannot access X before initialization").
+  const [tick, setTick] = useStateGS(0); // counter pour forcer re-render
+  const [paused, setPaused] = useStateGS(false);
+  const [flashRows, setFlashRows] = useStateGS([]);
+  const [combo, setCombo] = useStateGS(0);
+  const [floatScore, setFloatScore] = useStateGS(null); // {x,y,text}
+
   // ─── Reset particules au mount (clean state entre 2 parties)
   useEffectGS(() => {
     if (window.STParticles) window.STParticles.clear();
@@ -3274,12 +3644,27 @@ function GameScreen({
     };
   }, []);
 
-  // ─── State UI (re-renders OK)
-  const [tick, setTick] = useStateGS(0); // counter pour forcer re-render
-  const [paused, setPaused] = useStateGS(false);
-  const [flashRows, setFlashRows] = useStateGS([]);
-  const [combo, setCombo] = useStateGS(0);
-  const [floatScore, setFloatScore] = useStateGS(null); // {x,y,text}
+  // ─── v1.8 : MUSIQUE iconique de fond (Korobeiniki)
+  // Démarre au mount, stop au unmount.
+  useEffectGS(() => {
+    if (window.STMusic) window.STMusic.start();
+    return () => {
+      if (window.STMusic) window.STMusic.stop();
+    };
+  }, []);
+
+  // Pause/Resume music sync avec le pause du jeu
+  useEffectGS(() => {
+    if (!window.STMusic) return;
+    if (paused) window.STMusic.stop();else window.STMusic.start();
+  }, [paused]);
+
+  // Stop music quand game over
+  useEffectGS(() => {
+    if (gameRef.current && gameRef.current.gameOver && window.STMusic) {
+      window.STMusic.stop();
+    }
+  }, [tick]);
 
   // ─── Inputs : swipes + clavier
   useEffectGS(() => {
@@ -3669,40 +4054,50 @@ function GameScreen({
     const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
     if (id === "freeze") {
       window.STBoosters.applyFreeze(G);
-      if (window.STAudio) window.STAudio.play("booster");
-      if (window.STHaptics) window.STHaptics.vibePattern("booster");
     } else if (id === "laser") {
+      // ⚡ LASER : jusqu'à 4 lignes effacées + gravity. Particles ROUGES sur
+      // chaque ligne effacée (style Tetroid).
       const r = window.STBoosters.applyLaser(G);
-      if (cv && r.line >= 0 && window.STParticles) {
-        const cy = r.line * cellSize + cellSize / 2;
-        for (let x = 0; x < window.STCore.COLS; x++) {
-          window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#facc15");
-        }
-      }
-      if (window.STAudio) window.STAudio.play("booster");
-      if (window.STHaptics) window.STHaptics.vibePattern("booster");
-    } else if (id === "meteor") {
-      const r = window.STBoosters.applyMeteor(G, 5);
-      if (cv && window.STParticles) {
-        r.cells.forEach(function (cell) {
-          const px = cell.x * cellSize + cellSize / 2;
-          const py = cell.y * cellSize + cellSize / 2;
-          window.STParticles.addShockwave(px, py);
-          window.STParticles.addExplosion(px, py, "#f97316");
+      if (cv && window.STParticles && r.lines.length > 0) {
+        r.lines.forEach(function (rowIdx) {
+          const cy = rowIdx * cellSize + cellSize / 2;
+          for (let x = 0; x < window.STCore.COLS; x++) {
+            window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
+          }
         });
       }
-      if (window.STAudio) window.STAudio.play("booster");
-      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    } else if (id === "meteor") {
+      // ☄️ METEOR : 10 météores (1 par colonne), 3 cellules détruites verticalement.
+      // Particles ORANGES + shockwaves sur le top de chaque colonne touchée.
+      const r = window.STBoosters.applyMeteor(G);
+      if (cv && window.STParticles) {
+        r.columns.forEach(function (col) {
+          if (col.hits > 0) {
+            const px = col.col * cellSize + cellSize / 2;
+            const py = col.topRow * cellSize + cellSize / 2;
+            window.STParticles.addShockwave(px, py);
+            window.STParticles.addExplosion(px, py, "#ff9000");
+          }
+        });
+      }
     } else if (id === "magnet") {
+      // 🧲 MAGNET : gravity multi-passes + clear lignes. Particles VIOLETS
+      // sur le bas (où s'accumulent les blocs) + lignes effacées en bonus.
       const r = window.STBoosters.applyMagnet(G);
       if (cv && window.STParticles && r.cellsMoved > 0) {
         for (let x = 0; x < window.STCore.COLS; x++) {
-          window.STParticles.addExplosion(x * cellSize + cellSize / 2, cv.height - cellSize, "#ec4899");
+          window.STParticles.addExplosion(x * cellSize + cellSize / 2, cv.height - cellSize, "#b020ff");
         }
       }
-      if (window.STAudio) window.STAudio.play("booster");
-      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+      // Bonus combo si magnet a déclenché des line clears
+      if (r.linesCleared > 0) {
+        G.linesTotal = (G.linesTotal || 0) + r.linesCleared;
+      }
     }
+
+    // FX communs à tous les boosters
+    if (window.STAudio) window.STAudio.play("booster");
+    if (window.STHaptics) window.STHaptics.vibePattern("booster");
     setTick(t => t + 1);
   }
   const G = gameRef.current;
@@ -3718,7 +4113,15 @@ function GameScreen({
     nextPiece: G.queue && G.queue[0] || null,
     holdPiece: G.hold
   }), /*#__PURE__*/React.createElement("div", {
-    style: SGS.controlsRow
+    style: SGS.canvasWrap
+  }, /*#__PURE__*/React.createElement("div", {
+    style: SGS.timerOverlay
+  }, /*#__PURE__*/React.createElement("span", {
+    style: SGS.timerLabel
+  }, "TIME"), /*#__PURE__*/React.createElement("span", {
+    style: SGS.timerValue
+  }, formatGameTime(G.elapsedMs))), /*#__PURE__*/React.createElement("div", {
+    style: SGS.controlsOverlay
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setPaused(p => !p),
     style: SGS.smallBtn,
@@ -3731,9 +4134,7 @@ function GameScreen({
     },
     style: SGS.smallBtn,
     "aria-label": "Accueil"
-  }, "\uD83C\uDFE0")), /*#__PURE__*/React.createElement("div", {
-    style: SGS.canvasWrap
-  }, /*#__PURE__*/React.createElement("canvas", {
+  }, "\uD83C\uDFE0")), /*#__PURE__*/React.createElement("canvas", {
     ref: canvasRef,
     width: 400,
     height: 800,
@@ -3789,6 +4190,14 @@ function GameScreen({
   }, "Accueil"))));
 }
 
+/* ─── Helpers ──────────────────────────────────────────────── */
+function formatGameTime(ms) {
+  const total = Math.max(0, Math.floor((ms || 0) / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+
 /* ─── Initial state ──────────────────────────────────────────── */
 function createInitialGameState() {
   const queue = window.STBag ? window.STBag.initQueue() : [];
@@ -3824,11 +4233,44 @@ const SGS = {
     flexDirection: "column",
     background: "radial-gradient(ellipse at top, #1a2a6e, #0b1238 70%)"
   },
-  controlsRow: {
-    display: "flex",
+  /* v4.1 : timer + boutons en OVERLAYS sur les côtés du canvas
+     (n'occupent pas de hauteur dans le flow) */
+  timerOverlay: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    zIndex: 5,
+    display: "inline-flex",
+    alignItems: "baseline",
     gap: 8,
-    padding: "0 8px 8px",
-    justifyContent: "flex-end"
+    background: "linear-gradient(180deg, rgba(20,30,80,0.85), rgba(11,18,56,0.85))",
+    border: "1.5px solid var(--purple)",
+    borderRadius: 100,
+    padding: "5px 12px",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.3)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)"
+  },
+  timerLabel: {
+    fontSize: 10,
+    fontWeight: 800,
+    color: "var(--sky)",
+    letterSpacing: 1.5
+  },
+  timerValue: {
+    fontFamily: "'Lilita One', cursive",
+    fontSize: 16,
+    color: "var(--sky)",
+    letterSpacing: 1,
+    textShadow: "0 1px 0 rgba(0,0,0,0.4), 0 0 8px rgba(56,189,248,0.5)"
+  },
+  controlsOverlay: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    zIndex: 5,
+    display: "flex",
+    gap: 6
   },
   smallBtn: {
     width: 40,
@@ -3841,9 +4283,11 @@ const SGS = {
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.25)"
   },
   canvasWrap: {
+    /* flex:1 → ce wrapper PREND toute la hauteur restante (entre HUD
+       et boosters). align-items:stretch → le canvas remplit la hauteur. */
     flex: 1,
     display: "flex",
-    alignItems: "center",
+    alignItems: "stretch",
     justifyContent: "center",
     position: "relative",
     minHeight: 0,
@@ -3854,15 +4298,15 @@ const SGS = {
     borderRadius: 10,
     boxShadow: "0 0 24px rgba(124,58,237,0.5), inset 0 0 0 3px rgba(124,58,237,0.7)",
     touchAction: "none",
-    /* v1.5 : encore plus grand (HUD condensé en 2 rangées au lieu de 3).
-       HUD ~140px + boosters ~100px + marges ~20px ≈ 260px à retirer.
-       Sur 1920×1080 → ~410×820 (vs 530×1060 ratio idéal mais limité
-       par maxWidth = viewport). Sur mobile portrait full-width. */
-    height: "min(calc(100vh - 250px), calc((100vw - 24px) * 2), 95vh)",
+    /* v1.7 : canvas REMPLIT 100% de l'espace flex restant.
+       - height:100% → toute la hauteur du wrapper (qui est flex:1)
+       - width:auto + aspect-ratio 1/2 → largeur calculée auto
+       - maxWidth:100% protège contre le débordement horizontal sur
+         écrans très larges où le canvas pourrait dépasser le viewport. */
+    height: "100%",
     width: "auto",
     aspectRatio: "1 / 2",
-    maxWidth: "calc(100vw - 24px)",
-    minHeight: "480px"
+    maxWidth: "100%"
   },
   comboBanner: {
     position: "absolute",
@@ -4862,6 +5306,7 @@ function SettingsScreen({
 }) {
   const s = settings || {
     sound: true,
+    music: true,
     vibro: true,
     lang: "fr",
     theme: "dark"
@@ -4896,13 +5341,25 @@ function SettingsScreen({
   }, /*#__PURE__*/React.createElement(Section, {
     title: "Audio & vibration"
   }, /*#__PURE__*/React.createElement(Row, {
-    label: "Son",
-    description: "Effets sonores et musique",
+    label: "Effets sonores",
+    description: "Bips au d\xE9placement, lock, line clear, etc.",
     control: /*#__PURE__*/React.createElement(Toggle, {
       on: s.sound,
       onChange: v => update({
         sound: v
       })
+    })
+  }), /*#__PURE__*/React.createElement(Row, {
+    label: "Musique",
+    description: "Th\xE8me iconique Tetris (Korobeiniki) en boucle",
+    control: /*#__PURE__*/React.createElement(Toggle, {
+      on: s.music !== false,
+      onChange: v => {
+        update({
+          music: v
+        });
+        if (window.STMusic) window.STMusic.toggle(v);
+      }
     })
   }), /*#__PURE__*/React.createElement(Row, {
     label: "Vibration",
@@ -5231,19 +5688,22 @@ const DEFAULT_PROFILE = {
   // bonus de bienvenue
   xp: 0,
   bestScore: 0,
+  // v1.9 TEST : 30 de chaque pour que Pino puisse tester tous les boosters.
+  // À RAMENER aux valeurs réelles avant prod publique : freeze:1, laser:1,
+  // meteor:0, magnet:0 (et le reste s'achète au shop / via la roue).
   boosters: {
-    freeze: 1,
-    laser: 1,
-    meteor: 0,
-    magnet: 0
+    freeze: 30,
+    laser: 30,
+    meteor: 30,
+    magnet: 30
   },
-  // pack starter
   wheelLastFree: 0,
   // timestamp dernier spin gratuit
   totalGames: 0
 };
 const DEFAULT_SETTINGS = {
   sound: true,
+  music: true,
   vibro: true,
   lang: "fr",
   theme: "dark"

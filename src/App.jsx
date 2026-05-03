@@ -24,13 +24,17 @@ const DEFAULT_PROFILE = {
   coins: 100,            // bonus de bienvenue
   xp: 0,
   bestScore: 0,
-  boosters: { freeze: 1, laser: 1, meteor: 0, magnet: 0 }, // pack starter
+  // v1.9 TEST : 30 de chaque pour que Pino puisse tester tous les boosters.
+  // À RAMENER aux valeurs réelles avant prod publique : freeze:1, laser:1,
+  // meteor:0, magnet:0 (et le reste s'achète au shop / via la roue).
+  boosters: { freeze: 30, laser: 30, meteor: 30, magnet: 30 },
   wheelLastFree: 0,      // timestamp dernier spin gratuit
   totalGames: 0,
 };
 
 const DEFAULT_SETTINGS = {
   sound: true,
+  music: true,
   vibro: true,
   lang: "fr",
   theme: "dark",

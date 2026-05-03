@@ -1,161 +1,219 @@
 /* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — Boosters logic (4 boosters jouables)
+   Super Tetris — Boosters logic v2 (port FIDÈLE de Tetroid)
    ═══════════════════════════════════════════════════════════════════
-   Logique fonctionnelle des 4 boosters consommables. Toutes les
-   fonctions PRENNENT et RETOURNENT un nouveau game state (immutables
-   pour faciliter intégration React + undo éventuel).
+   Reproduction exacte des mécaniques Tetroid (tetroid-pro/js/boosters.js)
+   adaptées à notre architecture pure-functions.
 
-   Boosters :
-     ❄️ FREEZE  : suspend la gravité pendant 15000ms (15s)
-                  → met G.freezeUntil = now + 15000
-                  → le tick gameLoop respecte ce flag (gravité = 0)
+   ❄️ FREEZE  (15s)
+     → suspend la gravité (G.freezeUntil = now + 15000)
 
-     ⚡ LASER   : détruit la ligne la plus basse non vide
-                  → trouve la ligne, la vide, ne la décale pas (juste vide)
-                  → ajoute particles + sound + haptic
+   ⚡ LASER   (jusqu'à 4 lignes !)
+     → trouve les 4 lignes les plus basses NON VIDES
+     → les efface complètement
+     → APPLIQUE LA GRAVITÉ pour faire tomber les blocs au-dessus
+     → score : +12 par cellule effacée
 
-     ☄️ METEOR  : détruit 5 cellules aléatoires non vides
-                  → choisit 5 positions occupées au hasard
-                  → particles d'impact à chacune
-                  → shockwave central
+   ☄️ METEOR  (1 météore par colonne = 10 impacts !)
+     → pour chaque colonne (gauche → droite avec delay 80ms)
+       * détruit 3 cellules verticales depuis le top de la pile
+       * applique gravité dans cette colonne (compresse vers le bas)
+     → score : +15 par cellule détruite
 
-     🧲 MAGNET  : attire les blocs vers le bas (gravity sweep)
-                  → pour chaque colonne, fait tomber les blocs en haut
-                  → ferme les "trous" laissés par des poses imparfaites
-                  → gros bonus stratégique pour rétablir une situation
-                    catastrophique
+   🧲 MAGNET (gravité totale)
+     → applique gravity par PASSES successives jusqu'à stabilité
+     → entre chaque passe : clear des lignes pleines créées
+     → score : +8 par brique déplacée
 
-   Cooldowns par défaut : 5s entre 2 utilisations du même booster.
-
-   Constantes exposées : COOLDOWNS, DURATIONS
+   API :
+     applyFreeze(G) → G
+     applyLaser(G)  → { grid, lines: [indices], cells: int }
+     applyMeteor(G) → { grid, columns: [{col, hits: int}] }
+     applyMagnet(G) → { grid, cellsMoved: int, linesCleared: int }
+     applyGravity(grid) → { grid, moved: int }   (helper utility)
    ═══════════════════════════════════════════════════════════════════ */
 
 (function () {
   // ─── Configuration ────────────────────────────────────────────
-  var COOLDOWNS = {
-    freeze: 5000,
-    laser:  5000,
-    meteor: 5000,
-    magnet: 8000,
-  };
+  var COOLDOWNS = { freeze: 5000, laser: 5000, meteor: 5000, magnet: 8000 };
+  var DURATIONS = { freeze: 15000 };
+  var LASER_MAX_LINES = 4;
+  var METEOR_DEPTH = 3;
+  var SCORE = { laser: 12, meteor: 15, magnet: 8 };
 
-  var DURATIONS = {
-    freeze: 15000,  // ms d'immobilisation gravité (15s)
-  };
+  /** Helper interne : clone profond d'une grille. */
+  function cloneGrid(grid) {
+    var g = new Array(grid.length);
+    for (var r = 0; r < grid.length; r++) g[r] = grid[r].slice();
+    return g;
+  }
 
   /**
-   * FREEZE — suspend la gravité pendant DURATIONS.freeze ms.
-   * Mute G.freezeUntil. Le game loop check ce flag.
+   * ─── GRAVITY (fondamental) ────────────────────────────────────
+   * Applique la gravité à la grille : tout bloc qui a une cellule
+   * vide en dessous descend d'une rangée. Multi-passes jusqu'à
+   * stabilité. Retourne le nb total de cellules déplacées.
+   */
+  function applyGravity(grid) {
+    var rows = grid.length;
+    var cols = (grid[0] || []).length;
+    var totalMoved = 0;
+    var changed = true;
+    var safety = 0;
+
+    while (changed && safety < rows * 2) {
+      changed = false;
+      // De bas en haut : on bouge un bloc d'1 case si la case du dessous est vide
+      for (var r = rows - 2; r >= 0; r--) {
+        for (var c = 0; c < cols; c++) {
+          if (grid[r][c] && !grid[r + 1][c]) {
+            grid[r + 1][c] = grid[r][c];
+            grid[r][c] = 0;
+            changed = true;
+            totalMoved++;
+          }
+        }
+      }
+      safety++;
+    }
+    return totalMoved;
+  }
+
+  /**
+   * ─── CLEAR LINES (silent) ─────────────────────────────────────
+   * Retire les lignes pleines + décale le reste vers le bas.
+   * Retourne le nb de lignes effacées.
+   * Note : on a aussi STCore.clearLines() mais ici version "silent"
+   * (sans gestion combo/scoring) pour être appelé après gravity.
+   */
+  function clearLinesSilent(grid) {
+    var rows = grid.length;
+    var cols = (grid[0] || []).length;
+    var newRows = [];
+    var clearedCount = 0;
+    for (var r = 0; r < rows; r++) {
+      var full = true;
+      for (var c = 0; c < cols; c++) { if (!grid[r][c]) { full = false; break; } }
+      if (full) clearedCount++;
+      else      newRows.push(grid[r].slice());
+    }
+    while (newRows.length < rows) newRows.unshift(new Array(cols).fill(0));
+    // copie back dans la même référence
+    for (var rr = 0; rr < rows; rr++) grid[rr] = newRows[rr];
+    return clearedCount;
+  }
+
+  /**
+   * ❄️ FREEZE — suspend la gravité 15s.
    */
   function applyFreeze(G) {
     if (!G) return G;
-    var now = Date.now();
-    G.freezeUntil = now + DURATIONS.freeze;
+    G.freezeUntil = Date.now() + DURATIONS.freeze;
     return G;
   }
-
-  /** Renvoie true si la gravité doit être suspendue MAINTENANT. */
   function isFrozen(G) {
-    if (!G || !G.freezeUntil) return false;
-    return Date.now() < G.freezeUntil;
+    return !!(G && G.freezeUntil && Date.now() < G.freezeUntil);
   }
 
   /**
-   * LASER — détruit la ligne la plus basse occupée (vidée, pas supprimée).
-   * Retourne { grid, line: index }. Si pas de ligne, line = -1.
+   * ⚡ LASER — efface jusqu'à 4 lignes les plus basses + gravity.
+   * Retourne { grid, lines: indices effacés, cells: nb cellules effacées }.
    */
   function applyLaser(G) {
-    if (!G || !G.grid) return { grid: G && G.grid, line: -1 };
-    var grid = window.STCore.cloneGrid(G.grid);
+    if (!G || !G.grid) return { grid: G && G.grid, lines: [], cells: 0 };
+    var grid = cloneGrid(G.grid);
     var rows = grid.length;
     var cols = (grid[0] || []).length;
 
-    // Cherche la ligne la plus basse avec au moins une cellule
-    var targetLine = -1;
-    for (var r = rows - 1; r >= 0; r--) {
-      var hasCell = false;
+    // Chercher les LASER_MAX_LINES lignes les plus basses NON vides
+    var targets = [];
+    for (var r = rows - 1; r >= 0 && targets.length < LASER_MAX_LINES; r--) {
       for (var c = 0; c < cols; c++) {
-        if (grid[r][c]) { hasCell = true; break; }
-      }
-      if (hasCell) { targetLine = r; break; }
-    }
-
-    if (targetLine >= 0) {
-      for (var x = 0; x < cols; x++) grid[targetLine][x] = 0;
-      G.grid = grid;
-    }
-    return { grid: G.grid, line: targetLine };
-  }
-
-  /**
-   * METEOR — détruit 5 cellules aléatoires occupées.
-   * Retourne { grid, cells: [{x,y}] }.
-   */
-  function applyMeteor(G, count) {
-    count = count || 5;
-    if (!G || !G.grid) return { grid: G && G.grid, cells: [] };
-    var grid = window.STCore.cloneGrid(G.grid);
-    var rows = grid.length;
-    var cols = (grid[0] || []).length;
-
-    // Récupère toutes les cellules occupées
-    var occupied = [];
-    for (var r = 0; r < rows; r++) {
-      for (var c = 0; c < cols; c++) {
-        if (grid[r][c]) occupied.push({ x: c, y: r });
+        if (grid[r][c]) { targets.push(r); break; }
       }
     }
-    if (occupied.length === 0) return { grid: G.grid, cells: [] };
 
-    // Shuffle Fisher-Yates et prend les `count` premières
-    for (var i = occupied.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var tmp = occupied[i]; occupied[i] = occupied[j]; occupied[j] = tmp;
-    }
-    var hits = occupied.slice(0, Math.min(count, occupied.length));
-    hits.forEach(function (cell) {
-      grid[cell.y][cell.x] = 0;
+    var totalCells = 0;
+    targets.forEach(function (row) {
+      for (var x = 0; x < cols; x++) {
+        if (grid[row][x]) totalCells++;
+        grid[row][x] = 0;
+      }
     });
+
+    // GRAVITY après clear (sinon les blocs au-dessus restent suspendus !)
+    applyGravity(grid);
+
     G.grid = grid;
-    return { grid: G.grid, cells: hits };
+    G.score = (G.score || 0) + totalCells * SCORE.laser;
+    return { grid: grid, lines: targets, cells: totalCells };
   }
 
   /**
-   * MAGNET — fait tomber tous les blocs vers le bas, colonne par colonne,
-   * pour combler les trous. Très utile sur des grids "gruyère".
-   * Retourne { grid, cellsMoved }.
+   * ☄️ METEOR — 1 météore par colonne, détruit 3 cellules vert. + gravity.
+   * Retourne { grid, columns: [{col, hits}], totalCells }.
    */
-  function applyMagnet(G) {
-    if (!G || !G.grid) return { grid: G && G.grid, cellsMoved: 0 };
-    var grid = window.STCore.cloneGrid(G.grid);
+  function applyMeteor(G) {
+    if (!G || !G.grid) return { grid: G && G.grid, columns: [], totalCells: 0 };
+    var grid = cloneGrid(G.grid);
     var rows = grid.length;
     var cols = (grid[0] || []).length;
-    var moved = 0;
+    var columns = [];
+    var totalCells = 0;
 
     for (var c = 0; c < cols; c++) {
-      // Récupère toutes les cellules non vides de cette colonne, en partant du bas
-      var stack = [];
-      for (var r = rows - 1; r >= 0; r--) {
-        if (grid[r][c]) {
-          stack.push(grid[r][c]);
-          grid[r][c] = 0;
+      // Trouve le top de la pile dans cette colonne
+      var topRow = -1;
+      for (var r = 0; r < rows; r++) {
+        if (grid[r][c]) { topRow = r; break; }
+      }
+      if (topRow < 0) {
+        columns.push({ col: c, hits: 0, topRow: -1 });
+        continue;
+      }
+      // Détruit jusqu'à METEOR_DEPTH cellules vers le bas
+      var hits = 0;
+      for (var dr = 0; dr < METEOR_DEPTH; dr++) {
+        var rr = topRow + dr;
+        if (rr < rows && grid[rr][c]) {
+          grid[rr][c] = 0;
+          hits++;
+          totalCells++;
         }
       }
-      // Réécrit en partant du bas
-      for (var k = 0; k < stack.length; k++) {
-        var newR = rows - 1 - k;
-        var oldVal = grid[newR][c];
-        if (!oldVal) moved++;
-        grid[newR][c] = stack[k];
-      }
+      columns.push({ col: c, hits: hits, topRow: topRow });
     }
+
+    // GRAVITY pour compresser les colonnes vers le bas
+    applyGravity(grid);
+
     G.grid = grid;
-    return { grid: G.grid, cellsMoved: moved };
+    G.score = (G.score || 0) + totalCells * SCORE.meteor;
+    return { grid: grid, columns: columns, totalCells: totalCells };
   }
 
   /**
-   * Centre approximatif (pixels) d'une cellule (col,row) selon cellSize.
-   * Utilisé pour positionner particles/shockwaves au bon endroit du canvas.
+   * 🧲 MAGNET — gravity multi-passes + clear lignes pleines.
+   * Retourne { grid, cellsMoved, linesCleared }.
+   */
+  function applyMagnet(G) {
+    if (!G || !G.grid) return { grid: G && G.grid, cellsMoved: 0, linesCleared: 0 };
+    var grid = cloneGrid(G.grid);
+
+    var moved = applyGravity(grid);
+    var linesCleared = clearLinesSilent(grid);
+    // Si lignes effacées → reapply gravity (cascade possible)
+    if (linesCleared > 0) {
+      moved += applyGravity(grid);
+      linesCleared += clearLinesSilent(grid);
+    }
+
+    G.grid = grid;
+    G.score = (G.score || 0) + moved * SCORE.magnet;
+    return { grid: grid, cellsMoved: moved, linesCleared: linesCleared };
+  }
+
+  /**
+   * Helper : pixel center d'une cellule (col, row) selon cellSize.
    */
   function cellCenterPx(col, row, cellSize) {
     return {
@@ -167,11 +225,14 @@
   window.STBoosters = {
     COOLDOWNS: COOLDOWNS,
     DURATIONS: DURATIONS,
+    LASER_MAX_LINES: LASER_MAX_LINES,
+    METEOR_DEPTH: METEOR_DEPTH,
     applyFreeze: applyFreeze,
     isFrozen: isFrozen,
     applyLaser: applyLaser,
     applyMeteor: applyMeteor,
     applyMagnet: applyMagnet,
+    applyGravity: applyGravity,
     cellCenterPx: cellCenterPx,
   };
 })();

@@ -86,7 +86,13 @@ function HomeScreen({ profile, onNavigate }) {
         >📊</button>
 
         <button
-          onClick={() => onNavigate && onNavigate("game")}
+          onClick={() => {
+            // v1.7 : pré-warm AudioContext sur ce gesture user garanti
+            // (sinon le 1er son du jeu peut être muet à cause de la
+            // policy autoplay des navigateurs).
+            if (window.STAudio) window.STAudio.play("button");
+            if (onNavigate) onNavigate("game");
+          }}
           className="btn-3d"
           style={SH.playBtn}
         >NEW GAME</button>

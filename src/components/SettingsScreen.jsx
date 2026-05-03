@@ -19,7 +19,7 @@
 const { useState: useStateSS } = React;
 
 function SettingsScreen({ settings, onChange, onClose, onReset }) {
-  const s = settings || { sound: true, vibro: true, lang: "fr", theme: "dark" };
+  const s = settings || { sound: true, music: true, vibro: true, lang: "fr", theme: "dark" };
   const [confirmReset, setConfirmReset] = useStateSS(false);
 
   function update(patch) {
@@ -43,10 +43,20 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
         {/* Audio & haptics */}
         <Section title="Audio & vibration">
           <Row
-            label="Son"
-            description="Effets sonores et musique"
+            label="Effets sonores"
+            description="Bips au déplacement, lock, line clear, etc."
             control={
               <Toggle on={s.sound} onChange={(v) => update({ sound: v })} />
+            }
+          />
+          <Row
+            label="Musique"
+            description="Thème iconique Tetris (Korobeiniki) en boucle"
+            control={
+              <Toggle on={s.music !== false} onChange={(v) => {
+                update({ music: v });
+                if (window.STMusic) window.STMusic.toggle(v);
+              }} />
             }
           />
           <Row

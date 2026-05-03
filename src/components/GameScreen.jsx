@@ -31,18 +31,41 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     gameRef.current = createInitialGameState();
   }
 
+  // ─── State UI (re-renders OK)
+  // ⚠ DOIT être déclaré AVANT les useEffect qui utilisent ces vars
+  // (sinon ReferenceError "Cannot access X before initialization").
+  const [tick, setTick]               = useStateGS(0);  // counter pour forcer re-render
+  const [paused, setPaused]           = useStateGS(false);
+  const [flashRows, setFlashRows]     = useStateGS([]);
+  const [combo, setCombo]             = useStateGS(0);
+  const [floatScore, setFloatScore]   = useStateGS(null); // {x,y,text}
+
   // ─── Reset particules au mount (clean state entre 2 parties)
   useEffectGS(() => {
     if (window.STParticles) window.STParticles.clear();
     return () => { if (window.STParticles) window.STParticles.clear(); };
   }, []);
 
-  // ─── State UI (re-renders OK)
-  const [tick, setTick]               = useStateGS(0);  // counter pour forcer re-render
-  const [paused, setPaused]           = useStateGS(false);
-  const [flashRows, setFlashRows]     = useStateGS([]);
-  const [combo, setCombo]             = useStateGS(0);
-  const [floatScore, setFloatScore]   = useStateGS(null); // {x,y,text}
+  // ─── v1.8 : MUSIQUE iconique de fond (Korobeiniki)
+  // Démarre au mount, stop au unmount.
+  useEffectGS(() => {
+    if (window.STMusic) window.STMusic.start();
+    return () => { if (window.STMusic) window.STMusic.stop(); };
+  }, []);
+
+  // Pause/Resume music sync avec le pause du jeu
+  useEffectGS(() => {
+    if (!window.STMusic) return;
+    if (paused) window.STMusic.stop();
+    else window.STMusic.start();
+  }, [paused]);
+
+  // Stop music quand game over
+  useEffectGS(() => {
+    if (gameRef.current && gameRef.current.gameOver && window.STMusic) {
+      window.STMusic.stop();
+    }
+  }, [tick]);
 
   // ─── Inputs : swipes + clavier
   useEffectGS(() => {
@@ -385,44 +408,54 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
 
     if (id === "freeze") {
       window.STBoosters.applyFreeze(G);
-      if (window.STAudio)   window.STAudio.play("booster");
-      if (window.STHaptics) window.STHaptics.vibePattern("booster");
     } else if (id === "laser") {
+      // ⚡ LASER : jusqu'à 4 lignes effacées + gravity. Particles ROUGES sur
+      // chaque ligne effacée (style Tetroid).
       const r = window.STBoosters.applyLaser(G);
-      if (cv && r.line >= 0 && window.STParticles) {
-        const cy = r.line * cellSize + cellSize / 2;
-        for (let x = 0; x < window.STCore.COLS; x++) {
-          window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#facc15");
-        }
-      }
-      if (window.STAudio)   window.STAudio.play("booster");
-      if (window.STHaptics) window.STHaptics.vibePattern("booster");
-    } else if (id === "meteor") {
-      const r = window.STBoosters.applyMeteor(G, 5);
-      if (cv && window.STParticles) {
-        r.cells.forEach(function (cell) {
-          const px = cell.x * cellSize + cellSize / 2;
-          const py = cell.y * cellSize + cellSize / 2;
-          window.STParticles.addShockwave(px, py);
-          window.STParticles.addExplosion(px, py, "#f97316");
+      if (cv && window.STParticles && r.lines.length > 0) {
+        r.lines.forEach(function (rowIdx) {
+          const cy = rowIdx * cellSize + cellSize / 2;
+          for (let x = 0; x < window.STCore.COLS; x++) {
+            window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
+          }
         });
       }
-      if (window.STAudio)   window.STAudio.play("booster");
-      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+    } else if (id === "meteor") {
+      // ☄️ METEOR : 10 météores (1 par colonne), 3 cellules détruites verticalement.
+      // Particles ORANGES + shockwaves sur le top de chaque colonne touchée.
+      const r = window.STBoosters.applyMeteor(G);
+      if (cv && window.STParticles) {
+        r.columns.forEach(function (col) {
+          if (col.hits > 0) {
+            const px = col.col * cellSize + cellSize / 2;
+            const py = col.topRow * cellSize + cellSize / 2;
+            window.STParticles.addShockwave(px, py);
+            window.STParticles.addExplosion(px, py, "#ff9000");
+          }
+        });
+      }
     } else if (id === "magnet") {
+      // 🧲 MAGNET : gravity multi-passes + clear lignes. Particles VIOLETS
+      // sur le bas (où s'accumulent les blocs) + lignes effacées en bonus.
       const r = window.STBoosters.applyMagnet(G);
       if (cv && window.STParticles && r.cellsMoved > 0) {
         for (let x = 0; x < window.STCore.COLS; x++) {
           window.STParticles.addExplosion(
             x * cellSize + cellSize / 2,
             cv.height - cellSize,
-            "#ec4899"
+            "#b020ff"
           );
         }
       }
-      if (window.STAudio)   window.STAudio.play("booster");
-      if (window.STHaptics) window.STHaptics.vibePattern("booster");
+      // Bonus combo si magnet a déclenché des line clears
+      if (r.linesCleared > 0) {
+        G.linesTotal = (G.linesTotal || 0) + r.linesCleared;
+      }
     }
+
+    // FX communs à tous les boosters
+    if (window.STAudio)   window.STAudio.play("booster");
+    if (window.STHaptics) window.STHaptics.vibePattern("booster");
     setTick(t => t + 1);
   }
 
@@ -444,32 +477,42 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         />
       )}
 
-      {/* Pause / Exit button bar */}
-      <div style={SGS.controlsRow}>
-        <button
-          onClick={() => setPaused(p => !p)}
-          style={SGS.smallBtn}
-          aria-label="Pause"
-        >{paused ? "▶" : "⏸"}</button>
-        <button
-          onClick={() => {
-            if (window.confirm("Quitter la partie ?")) {
-              if (typeof onExitToHome === "function") onExitToHome();
-            }
-          }}
-          style={SGS.smallBtn}
-          aria-label="Accueil"
-        >🏠</button>
-      </div>
-
-      {/* Canvas centered — responsive : taille calculée pour remplir l'écran */}
+      {/* v4.1 : canvas COLLE au HUD (plus aucun espace mort entre eux).
+          Le timer + boutons pause/accueil flottent en OVERLAY sur les
+          côtés du wrapper, sans bouffer de hauteur. */}
       <div style={SGS.canvasWrap}>
+        {/* TIMER pill en overlay à GAUCHE (à l'opposé pause/accueil à droite) */}
+        <div style={SGS.timerOverlay}>
+          <span style={SGS.timerLabel}>TIME</span>
+          <span style={SGS.timerValue}>{formatGameTime(G.elapsedMs)}</span>
+        </div>
+
+        {/* Boutons pause/accueil en overlay à DROITE */}
+        <div style={SGS.controlsOverlay}>
+          <button
+            onClick={() => setPaused(p => !p)}
+            style={SGS.smallBtn}
+            aria-label="Pause"
+          >{paused ? "▶" : "⏸"}</button>
+          <button
+            onClick={() => {
+              if (window.confirm("Quitter la partie ?")) {
+                if (typeof onExitToHome === "function") onExitToHome();
+              }
+            }}
+            style={SGS.smallBtn}
+            aria-label="Accueil"
+          >🏠</button>
+        </div>
+
+        {/* Canvas centré : prend 100% de la hauteur du wrapper */}
         <canvas
           ref={canvasRef}
           width={400}
           height={800}
           style={SGS.canvas}
         />
+
         {combo >= 2 && (
           <div style={SGS.comboBanner} className="pop-in" key={"combo" + combo}>
             COMBO <span style={{ color: "var(--gold)" }}>{combo}</span>
@@ -517,6 +560,14 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
   );
 }
 
+/* ─── Helpers ──────────────────────────────────────────────── */
+function formatGameTime(ms) {
+  const total = Math.max(0, Math.floor((ms || 0) / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+
 /* ─── Initial state ──────────────────────────────────────────── */
 function createInitialGameState() {
   const queue = window.STBag ? window.STBag.initQueue() : [];
@@ -552,11 +603,44 @@ const SGS = {
     background: "radial-gradient(ellipse at top, #1a2a6e, #0b1238 70%)",
   },
 
-  controlsRow: {
-    display: "flex",
+  /* v4.1 : timer + boutons en OVERLAYS sur les côtés du canvas
+     (n'occupent pas de hauteur dans le flow) */
+  timerOverlay: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    zIndex: 5,
+    display: "inline-flex",
+    alignItems: "baseline",
     gap: 8,
-    padding: "0 8px 8px",
-    justifyContent: "flex-end",
+    background: "linear-gradient(180deg, rgba(20,30,80,0.85), rgba(11,18,56,0.85))",
+    border: "1.5px solid var(--purple)",
+    borderRadius: 100,
+    padding: "5px 12px",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.3)",
+    backdropFilter: "blur(4px)",
+    WebkitBackdropFilter: "blur(4px)",
+  },
+  timerLabel: {
+    fontSize: 10,
+    fontWeight: 800,
+    color: "var(--sky)",
+    letterSpacing: 1.5,
+  },
+  timerValue: {
+    fontFamily: "'Lilita One', cursive",
+    fontSize: 16,
+    color: "var(--sky)",
+    letterSpacing: 1,
+    textShadow: "0 1px 0 rgba(0,0,0,0.4), 0 0 8px rgba(56,189,248,0.5)",
+  },
+  controlsOverlay: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    zIndex: 5,
+    display: "flex",
+    gap: 6,
   },
   smallBtn: {
     width: 40,
@@ -570,9 +654,11 @@ const SGS = {
   },
 
   canvasWrap: {
+    /* flex:1 → ce wrapper PREND toute la hauteur restante (entre HUD
+       et boosters). align-items:stretch → le canvas remplit la hauteur. */
     flex: 1,
     display: "flex",
-    alignItems: "center",
+    alignItems: "stretch",
     justifyContent: "center",
     position: "relative",
     minHeight: 0,
@@ -583,15 +669,15 @@ const SGS = {
     borderRadius: 10,
     boxShadow: "0 0 24px rgba(124,58,237,0.5), inset 0 0 0 3px rgba(124,58,237,0.7)",
     touchAction: "none",
-    /* v1.5 : encore plus grand (HUD condensé en 2 rangées au lieu de 3).
-       HUD ~140px + boosters ~100px + marges ~20px ≈ 260px à retirer.
-       Sur 1920×1080 → ~410×820 (vs 530×1060 ratio idéal mais limité
-       par maxWidth = viewport). Sur mobile portrait full-width. */
-    height: "min(calc(100vh - 250px), calc((100vw - 24px) * 2), 95vh)",
+    /* v1.7 : canvas REMPLIT 100% de l'espace flex restant.
+       - height:100% → toute la hauteur du wrapper (qui est flex:1)
+       - width:auto + aspect-ratio 1/2 → largeur calculée auto
+       - maxWidth:100% protège contre le débordement horizontal sur
+         écrans très larges où le canvas pourrait dépasser le viewport. */
+    height: "100%",
     width: "auto",
     aspectRatio: "1 / 2",
-    maxWidth: "calc(100vw - 24px)",
-    minHeight: "480px",
+    maxWidth: "100%",
   },
 
   comboBanner: {

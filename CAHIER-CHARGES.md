@@ -1,15 +1,71 @@
 # 🎮 Super Tetris — Cahier de charges
 
 > Jeu de puzzle Tetris avancé, réplique du Tetris officiel mobile, avec boosters, roue de la fortune, classement mondial, missions et pubs récompensées.
-> Version : **0.1** — 2026-05-02 (initialisation, structure React posée)
+> Version : **1.9** — 2026-05-03 (musique iconique + boosters fidèles Tetroid)
 > Studio : CloneX Studio (Joseph Pino Lando Njoua)
-> Stack : **React 18** (CDN) + **Babel pré-transpilé** (pattern Byer) + **Canvas 2D** + **localStorage** + **Cloudflare Pages** (hébergement) + **Google Play Billing** (achats intégrés futurs)
-> URL prod (à venir) : `https://super-tetris.pages.dev` ou `https://clonex.pages.dev/super-tetris`
+> Stack : **React 18** (CDN) + **Babel pré-transpilé** (pattern Byer) + **Canvas 2D** + **localStorage** + **Cloudflare Workers Static Assets** (hébergement) + **Google Play Billing** (achats intégrés futurs)
+> URL prod : **`https://super-tetris.landonjouajosephpino.workers.dev`** (déployée en mode Workers Static Assets via wrangler API token)
+> Repo : `https://github.com/land-lang-120/super-tetris` (public)
 > Voir aussi : `ARCHITECTURE.md` (détails techniques) · `PROGRESS.md` (suivi du dev)
 
 ---
 
-## 0. 📊 État d'avancement (snapshot 2026-05-02 — V1 STRUCTURE COMPLÈTE LIVRÉE 🎉)
+## 0. 📊 État d'avancement (snapshot 2026-05-03 — V1.9 EN PROD 🎉)
+
+### 🆕 RÉSUMÉ — où on en est NOW (3 mai 2026, ~04h30)
+
+| Aspect | Statut |
+|---|---|
+| 🌐 **Déploiement live** | ✅ `super-tetris.landonjouajosephpino.workers.dev` — v1.9 déployée via wrangler API token |
+| 🎮 **Gameplay core** | ✅ Marathon, 7 pièces, SRS, hold, ghost, hard/soft drop, T-spin, scoring Guideline |
+| 🍬 **Boosters** | ✅ Les 4 fonctionnels (FREEZE 15s, LASER 4 lignes+gravity, METEOR 10 col×3 cellules+gravity, MAGNET multi-pass+lines) — fidèles Tetroid |
+| 🎵 **Audio** | ✅ SFX synthétisés (move/rotate/lock/clear/etc.) + musique iconique Korobeiniki en boucle (port Tetroid) |
+| 📳 **Haptics** | ✅ Vibrations Android avec patterns par action |
+| 💥 **Particules** | ✅ Burst au clear de ligne + explosions + shockwaves boosters |
+| 🎨 **Look bonbon** | ✅ Boosters circulaires style Tetroid (cerclage blanc/couleur, reflets, pastille verte) |
+| 🏠 **HomeScreen** | ✅ Trophée 3D + RECRUE centré + boutons Play/Wheel/Settings + bandeau bas |
+| ⚙️ **SettingsScreen** | ✅ Sound + Music + Vibro + Langue + Reset double-confirm |
+| 🎰 **FortuneWheel** | ✅ 8 segments pondérés + animation + 1 spin gratuit/24h |
+| 💀 **GameOverScreen** | ✅ Médaillon SVG + stats + RÉESSAYER + Pub continue (stub) |
+| 📱 **PWA** | ✅ Manifest + SW v1.9 (network-first) + icônes 192/512 |
+| 🚧 **Pas encore** | ❌ Tournois (modèle C, threshold $10K), parrainage, leaderboard Firebase, 12 langues, AdMob réel, Google Play Billing, missions, skins |
+
+### 📍 URL de prod
+**`https://super-tetris.landonjouajosephpino.workers.dev`**
+
+⚠️ Note : URL en `.workers.dev` parce que Cloudflare a auto-créé le projet en mode **"Workers Static Assets"** (la nouvelle plateforme qui remplace Pages classique). Le déploiement se fait via :
+```bash
+CLOUDFLARE_API_TOKEN="cfut_..." npx wrangler deploy
+```
+Le token est valide 1 mois (jusqu'au 2026-06-03). Penser à renouveler avant.
+
+---
+
+### 🔄 Versions déployées (historique)
+
+| Ver | Quand | Quoi |
+|---|---|---|
+| **v1.0** | 2/5 23:30 | Squelette React, 7 écrans, Tetris jouable, 19 modules |
+| **v1.1** | 3/5 00:30 | Canvas plus grand + HUD repensé (SCORE/TIME hero) + section "Compétitions" |
+| **v1.2** | 3/5 01:00 | Canvas vraiment plus grand + RECRUE centré (grid 3-col) |
+| **v1.3** | 3/5 01:45 | **Batch 7** : audio.js + haptics.js + particles.js + boosters.js (logique stub) |
+| **v1.4** | 3/5 02:30 | Canvas 3× plus grand + boosters cercles arcade (1ère version) |
+| **v1.5** | 3/5 03:00 | HUD compact 2 rangées (LINES retiré, NEXT/HOLD intégrés) |
+| **v1.6** | 3/5 03:30 | **Boosters STYLE BONBON Tetroid exact** (radial gradient + reflets + cerclages + couleurs corrigées) |
+| **v1.7** | 3/5 03:45 | Canvas flex 100% + audio resume fix + HUD 1 rangée [LVL/COMBO/NEXT/SCORE] + TIMER pill flottant |
+| **v1.8** | 3/5 04:00 | **Musique iconique Korobeiniki** (port Tetroid : mélodie + basse + drums + scheduler) + canvas COLLE au HUD |
+| **v1.8.1** | 3/5 04:15 | Hotfix ReferenceError "paused before init" (ordre des hooks) |
+| **v1.9** | 3/5 04:30 | **Boosters refondus FIDÈLES Tetroid** : LASER détruit jusqu'à 4 lignes + gravity, METEOR 1 météore par colonne (10 au total) + 3 cellules verticales + gravity, MAGNET multi-pass + clear lines en cascade. Compteurs starter → 30 de chaque pour test. |
+
+### 📦 Bundle actuel
+- **24 fichiers** game/components/hooks → `bundle.js`
+- **170 KB** non-gzippé (~50 KB gzip)
+- Build : `node build.js` (~3-9 sec)
+- Deploy : `npx wrangler deploy` avec `CLOUDFLARE_API_TOKEN` env var (~30 sec)
+
+---
+
+## 0. 📊 État d'avancement (snapshot historique — V1 STRUCTURE COMPLÈTE LIVRÉE 🎉)
 
 > Source de vérité unique pour répondre à "où en est-on ?".
 > Mise à jour à CHAQUE batch livré (push GitHub).
@@ -144,6 +200,118 @@
 
 > 💡 Cette checklist est la dette technique à payer après chaque audit foiré.
 > Elle est **commune à Byer, Super Tetris, et toutes les futures apps CloneX**.
+
+---
+
+## 0ter. ✅ AUDIT CHECKLIST SENIOR — état v1.9 (3 mai 2026)
+
+> Audit méthodique des 13 règles ci-dessus appliquées au code v1.9 actuel.
+> Légende : ✅ OK · ⚠️ Partiel · ❌ Non fait · 🔜 Plan d'action
+
+### 1. Grep ghost-refs ✅
+- `LINES` retiré du HUD (v1.5) → grep confirmé 0 ref orpheline
+- `HOLD` retiré du HUD (v4) → SCORE l'a remplacé proprement, pas de ghost
+- `MiniCanvas` (ancien composant interne) supprimé → 0 ref restante
+- Styles `heroRow / heroBlock / heroLabel / scoreValue / timeValue` retirés en bloc → 0 ref orpheline
+- Variables `controlsRow / timerPill` supprimées et remplacées par `timerOverlay / controlsOverlay` → vérifié
+
+### 2. Walk-through render path ✅
+- `App.jsx` → `currentScreen` route vers 7 écrans avec optional chaining systématique sur `profile` et `settings`
+- `GameScreen.jsx` → toutes les références à `G` (gameRef.current) sont vérifiées par `if (!G || G.gameOver) return`
+- `HUD.jsx` → tous les fields acceptent undefined via fallback (`level || 1`, `combo > 0 ? "×" + combo : "×0"`, `formatNum(score)` retourne "0" si NaN)
+- `BoosterButtons.jsx` → `inv = inventory || {}` et `count = inv[b.id] ?? 0` (fallback partout)
+
+### 3. Test des 3 chemins ⚠️
+- **(a) 1ère ouverture (storage vide)** : ✅ DEFAULT_PROFILE injecté par useStorage avec defaults solides. Migration v1→v2 vérifiée (reset boosters à 30).
+- **(b) Joueur récurrent** : ✅ localStorage cache mémoire dans useStorage évite reads répétés. Boosters/score/XP correctement persistés entre parties.
+- **(c) Edge cases** : ⚠️ partiel
+  - Offline : SW cache l'app entière → ✅ OK
+  - RAF interrompu (visibilitychange) : ✅ géré dans useGameLoop
+  - vibrate API absente (iOS) : ✅ try/catch dans haptics.js
+  - AudioContext suspended : ✅ FIX v1.7 (resume forcé à chaque tone)
+  - LocalStorage bloqué (mode privé Safari) : ⚠️ safeRead/safeWrite catch erreurs mais ne notifient pas l'utilisateur → 🔜 toast warning à ajouter
+
+### 4. Lecture du diff ✅
+- Tous les commits récents (v1.4 à v1.9) ont été review fichier par fichier avant push
+- Aucun "git add ." sauvage : add ciblé sur les fichiers modifiés
+
+### 5. Vérif handlers ✅
+- Boosters : tous les `onUse` connectés à `activateBooster(id)` qui appelle la vraie logique STBoosters.applyXxx
+- Boutons pause/accueil : `onClick={() => setPaused(p => !p)}` et exit avec confirm
+- NEW GAME : `onClick` pré-warm AudioContext + navigate
+- Settings toggles : Toggle a un vrai `onChange={onChange}` qui propage à `update({ ... })`
+
+### 6. Audit cumulatif ✅
+- Vérifié à chaque batch : les phases précédentes (boosters consommables, score persisté, settings) tiennent toujours
+- v1.9 : ajouté le test que `applyMagnet` retourne aussi `linesCleared` qui s'accumule dans `G.linesTotal` → ne casse pas le scoring existant
+
+### 7. Smoke test live ✅
+À chaque deploy : `curl bundle.js | grep -c <feature>` >0 ET `grep -c <removed>` =0
+- v1.9 : `grep "applyGravity" bundle.js` → confirmé présent
+- `grep "MUSIC_SEQ" bundle.js` → 20 occurrences confirmées
+- `grep "freeze: 30" bundle.js` → DEFAULT_PROFILE migré
+
+### 8. Tests utilisateur ⚠️
+- **Bug v1.8 : "Cannot access paused before init"** non détecté avant push → fix v1.8.1
+- Leçon : les useEffects qui dépendent de useState locales doivent IMPÉRATIVEMENT être déclarés APRÈS leur déclaration (limites linter ESLint manquant ici)
+- 🔜 Ajouter un eslint plugin react-hooks pour catcher ce genre d'erreurs avant push
+
+### 9. Versionnage du schéma ✅
+- `useStorage.js` SCHEMA_VERSION = **2** (v1.9)
+- Migration v1→v2 implémentée : reset boosters à 30 (test Pino)
+- Migration future v2→v3 : prévoir un slot pour ajouter `wheelLastFree` ou `referrals` sans casser
+
+### 10. Optional chaining systématique ✅
+- `profile?.boosters?.freeze ?? 0` partout dans BoosterButtons et activateBooster
+- `safe = profile || {}` puis `safe.coins ?? 0` dans HomeScreen
+- Toutes les valeurs en provenance de localStorage sont fallback-safe
+
+### 11. Cleanup RAF ✅
+- `useGameLoop` : `cancelAnimationFrame(rafIdRef.current)` dans cleanup useEffect
+- `STMusic.stop()` clearInterval dans cleanup useEffect au unmount de GameScreen
+- `STParticles.clear()` au mount/unmount de GameScreen (pas de fuite particules entre 2 parties)
+- Listeners audio resume : auto-désinscription dès AC running (v1.7 fix)
+
+### 12. Pause / Resume ✅
+- `useGameLoop` accepte `active` prop : pause auto sur `document.visibilitychange` ou `onBlur`
+- `paused` state dans GameScreen → `STMusic.stop/start` synchronisé
+- Game over → STMusic.stop() pour libérer le scheduler
+
+### 13. Frame skip ✅
+- `useGameLoop` : `dt = Math.min(deltaMs, 100)` pour cap les gros lags (sinon partie tronquée si l'utilisateur revient après un sleep)
+- Pas de logique de gameplay basée sur `now()` directement, tout passe par `deltaMs` capé
+
+---
+
+### 🔜 PROCHAINES PRIORITÉS (post-pause Pino)
+
+**Polish v1.10 (1-2h)** :
+1. Test utilisateur complet de v1.9 (Pino : valider que LASER détruit bien 4 lignes + blocs tombent, METEOR 10 colonnes touchées, MAGNET cascade qui fait des lignes)
+2. Tutorial first-launch (2-3 écrans avec swipe : "Tu fais les lignes" + "Tap les bonbons pour booster")
+3. Animation level-up plein écran (overlay flash + texte "LVL X" + sound levelUp)
+4. Animation game over plus dramatique (zoom out + shake + fade)
+
+**Monétisation V2 (J+7)** :
+5. Shop fonctionnel (packs achetables, mock IAP avant Google Play Billing réel)
+6. Coffre quotidien + missions journalières (rétention)
+7. AdMob intégration (rewarded continue après game over + free booster toutes les 4h)
+
+**Social V2 (J+14)** :
+8. Système de parrainage (code unique + lien magique + récompenses parrain/filleul)
+9. Leaderboard mondial Firebase (top 100 + classement local par pays)
+10. Partage du score (sheet natif WhatsApp/Twitter/etc.)
+
+**International V2 (J+21)** :
+11. i18n : extraction strings + 12 langues (FR ✅ EN partiel + DE/ES/PT/RU/ZH/KO/AR/HI/NL/SV)
+
+**Tournois V3 (après threshold $10K revenus nets atteint)** :
+12. Modèle C : sweepstakes sponsorisé, free entry, pool 100 max, journalier/hebdo/mensuel
+13. Validation pays par pays (US "NO PURCHASE NECESSARY", CM déclaration MINFI éventuelle, UE 18+)
+
+**Soumission Play Store (parallèle au polish)** :
+14. PWABuilder.com → générer AAB depuis l'URL prod
+15. Play Console : créer fiche (nom, description FR/EN, screenshots, privacy URL clonex.pages.dev/privacy)
+16. Soumission Closed Testing → Open Testing → Production (3-7 jours revue Google)
 
 ---
 

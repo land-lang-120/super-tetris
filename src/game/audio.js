@@ -24,13 +24,26 @@
       if (!AC) return null;
       ctx = new AC();
       initialized = true;
-      // Resume on first user gesture (mobile autoplay policy)
+      // ─── Resume on user gesture (mobile + desktop autoplay policy)
+      // Listeners NON-once : tant que le AC est en suspended, chaque
+      // gesture utilisateur le tente. Auto-désinstallation dès running.
       var resume = function () {
-        if (ctx.state === "suspended") ctx.resume().catch(function(){});
+        if (!ctx) return;
+        if (ctx.state === "suspended") {
+          ctx.resume().then(function () {
+            if (ctx.state === "running") {
+              document.removeEventListener("touchstart", resume);
+              document.removeEventListener("click",      resume);
+              document.removeEventListener("keydown",    resume);
+              document.removeEventListener("pointerdown", resume);
+            }
+          }).catch(function(){});
+        }
       };
-      document.addEventListener("touchstart", resume, { once: true, passive: true });
-      document.addEventListener("click",      resume, { once: true });
-      document.addEventListener("keydown",    resume, { once: true });
+      document.addEventListener("touchstart",  resume, { passive: true });
+      document.addEventListener("click",       resume);
+      document.addEventListener("keydown",     resume);
+      document.addEventListener("pointerdown", resume);
       return ctx;
     } catch (_) { return null; }
   }
@@ -56,6 +69,15 @@
     var c = getCtx();
     if (!c) return;
     try {
+      // ─── Fix v1.7 : force le resume du AC à CHAQUE tone() s'il est
+      // suspended. Le listener once() peut rater le tout premier gesture
+      // (race condition) et laisser le AC bloqué muet pour toujours.
+      // Comme tone() est forcément appelé depuis un event handler user
+      // (move/rotate/lock/etc.), le browser autorise resume() ici.
+      if (c.state === "suspended" && typeof c.resume === "function") {
+        c.resume().catch(function () {});
+      }
+
       var osc = c.createOscillator();
       var gain = c.createGain();
       osc.type = type || "sine";
@@ -133,5 +155,6 @@
     SFX: SFX,
     tone: tone,
     sequence: sequence,
+    getCtx: getCtx, // exposé pour STMusic (partage du AudioContext)
   };
 })();

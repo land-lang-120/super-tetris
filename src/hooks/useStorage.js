@@ -17,7 +17,7 @@
 
 const { useState: useStateST, useEffect: useEffectST, useCallback: useCallbackST } = React;
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2; // v2 (v1.9) : reset boosters à 30 pour test Pino
 
 // Cache mémoire pour éviter les reads répétés
 const memCache = {};
@@ -78,7 +78,18 @@ function ensureSchema() {
     } else {
       const num = parseInt(v, 10);
       if (num < SCHEMA_VERSION) {
-        // Migrations futures à coder ici
+        // Migration v1 → v2 : reset boosters à 30 (test Pino)
+        if (num < 2) {
+          try {
+            const profileRaw = localStorage.getItem("st_profile");
+            if (profileRaw) {
+              const profile = JSON.parse(profileRaw);
+              profile.boosters = { freeze: 30, laser: 30, meteor: 30, magnet: 30 };
+              localStorage.setItem("st_profile", JSON.stringify(profile));
+              delete memCache["st_profile"]; // invalide cache
+            }
+          } catch (_) {}
+        }
         localStorage.setItem("st_v", String(SCHEMA_VERSION));
       }
     }
