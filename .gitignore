@@ -2,3 +2,27 @@ node_modules/
 .wrangler/
 *.log
 .DS_Store
+
+# ─── Wrangler / Cloudflare deploy artifacts ─────────────────
+.dev.vars
+wrangler.toml.bak
+
+# ─── Build artifacts ────────────────────────────────────────
+dist/
+build/
+
+# ─── PWABuilder packages — NE JAMAIS COMMITTER ──────────────
+# Contient les keystore.bin + mots de passe = signature Play Store
+# Si on perd ces fichiers, on ne peut PLUS jamais update l'app sur Play.
+# DOIT être sauvegardé hors-Git (Drive / Dropbox / clé USB).
+*.zip
+*-package/
+*.keystore
+*-keystore-passwords.txt
+*signing*.txt
+
+# ─── Secrets diverses ────────────────────────────────────────
+.env
+.env.*
+*.secret
+secrets/

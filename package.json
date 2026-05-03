@@ -12,12 +12,20 @@
     "type": "git",
     "url": "git+https://github.com/land-lang-120/super-tetris.git"
   },
-  "keywords": ["tetris", "puzzle", "game", "pwa", "react", "mobile"],
+  "keywords": [
+    "tetris",
+    "puzzle",
+    "game",
+    "pwa",
+    "react",
+    "mobile"
+  ],
   "author": "Joseph Pino Lando Njoua / CloneX Studio",
   "license": "MIT",
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.2",
-    "@babel/preset-react": "^7.28.5"
+    "@babel/preset-react": "^7.28.5",
+    "sharp": "^0.34.5"
   }
 }

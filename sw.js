@@ -4,7 +4,7 @@
    Cache-first pour les libs et icônes (rarement modifiés)
    ═══════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'super-tetris-v1.9';
+const CACHE_NAME = 'super-tetris-v1.9.2';
 
 const ASSETS = [
   './',
@@ -13,8 +13,9 @@ const ASSETS = [
   './bundle.js',
   './src/styles/variables.css',
   './src/styles/global.css',
-  './icons/icon-192.svg',
-  './icons/icon-512.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable.png',
 ];
 
 self.addEventListener('install', (e) => {

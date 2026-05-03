@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <!-- Fond royal blue → violet diagonal (couleurs de l'app) -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#1a2a6e"/>
+      <stop offset="50%" stop-color="#2d1b6e"/>
+      <stop offset="100%" stop-color="#0b1238"/>
+    </linearGradient>
+    <!-- Lettre S et T en arc-en-ciel -->
+    <linearGradient id="rainbow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#ef4444"/>
+      <stop offset="20%"  stop-color="#f97316"/>
+      <stop offset="40%"  stop-color="#ffd23f"/>
+      <stop offset="60%"  stop-color="#22c55e"/>
+      <stop offset="80%"  stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <!-- Reflet brillant haut -->
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="rgba(255,255,255,0.35)"/>
+      <stop offset="50%" stop-color="rgba(255,255,255,0.05)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fond rond avec coins très arrondis (style Android adaptive icon) -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Étoiles décoratives en arrière-plan -->
+  <g fill="rgba(255,255,255,0.4)">
+    <circle cx="80"  cy="100" r="3"/>
+    <circle cx="430" cy="80"  r="2"/>
+    <circle cx="60"  cy="380" r="2.5"/>
+    <circle cx="450" cy="420" r="3"/>
+    <circle cx="200" cy="60"  r="1.5"/>
+    <circle cx="380" cy="200" r="2"/>
+    <circle cx="120" cy="450" r="1.5"/>
+    <circle cx="320" cy="450" r="2"/>
+  </g>
+
+  <!-- ─── PIÈCES TETRIS décoratives autour ─── -->
+  <!-- T-piece violet en haut-gauche -->
+  <g>
+    <rect x="42" y="40" width="40" height="40" rx="6" fill="#a855f7" stroke="#7c3aed" stroke-width="2.5"/>
+    <rect x="2"  y="80" width="40" height="40" rx="6" fill="#a855f7" stroke="#7c3aed" stroke-width="2.5"/>
+    <rect x="42" y="80" width="40" height="40" rx="6" fill="#a855f7" stroke="#7c3aed" stroke-width="2.5"/>
+    <rect x="82" y="80" width="40" height="40" rx="6" fill="#a855f7" stroke="#7c3aed" stroke-width="2.5"/>
+    <!-- Highlight -->
+    <rect x="46" y="44" width="14" height="6" rx="3" fill="rgba(255,255,255,0.5)"/>
+  </g>
+
+  <!-- L-piece orange en haut-droite -->
+  <g>
+    <rect x="390" y="40" width="40" height="40" rx="6" fill="#f97316" stroke="#ea580c" stroke-width="2.5"/>
+    <rect x="390" y="80" width="40" height="40" rx="6" fill="#f97316" stroke="#ea580c" stroke-width="2.5"/>
+    <rect x="390" y="120" width="40" height="40" rx="6" fill="#f97316" stroke="#ea580c" stroke-width="2.5"/>
+    <rect x="430" y="120" width="40" height="40" rx="6" fill="#f97316" stroke="#ea580c" stroke-width="2.5"/>
+    <rect x="394" y="44" width="14" height="6" rx="3" fill="rgba(255,255,255,0.5)"/>
+  </g>
+
+  <!-- I-piece cyan en bas -->
+  <g>
+    <rect x="120" y="430" width="40" height="40" rx="6" fill="#06b6d4" stroke="#0891b2" stroke-width="2.5"/>
+    <rect x="160" y="430" width="40" height="40" rx="6" fill="#06b6d4" stroke="#0891b2" stroke-width="2.5"/>
+    <rect x="200" y="430" width="40" height="40" rx="6" fill="#06b6d4" stroke="#0891b2" stroke-width="2.5"/>
+    <rect x="240" y="430" width="40" height="40" rx="6" fill="#06b6d4" stroke="#0891b2" stroke-width="2.5"/>
+    <rect x="124" y="434" width="14" height="6" rx="3" fill="rgba(255,255,255,0.5)"/>
+  </g>
+
+  <!-- O-piece jaune en bas-droite -->
+  <g>
+    <rect x="380" y="380" width="48" height="48" rx="6" fill="#facc15" stroke="#eab308" stroke-width="2.5"/>
+    <rect x="428" y="380" width="48" height="48" rx="6" fill="#facc15" stroke="#eab308" stroke-width="2.5"/>
+    <rect x="380" y="428" width="48" height="48" rx="6" fill="#facc15" stroke="#eab308" stroke-width="2.5"/>
+    <rect x="428" y="428" width="48" height="48" rx="6" fill="#facc15" stroke="#eab308" stroke-width="2.5"/>
+    <rect x="384" y="384" width="20" height="8" rx="4" fill="rgba(255,255,255,0.5)"/>
+  </g>
+
+  <!-- ─── LETTRES "ST" GIANT au centre ─── -->
+  <g>
+    <!-- Ombre portée des lettres -->
+    <text x="256" y="320" text-anchor="middle"
+          font-family="'Lilita One', 'Arial Black', sans-serif"
+          font-weight="900" font-size="220"
+          fill="#000" opacity="0.4" dy="6">ST</text>
+    <!-- Lettres principales en arc-en-ciel -->
+    <text x="256" y="320" text-anchor="middle"
+          font-family="'Lilita One', 'Arial Black', sans-serif"
+          font-weight="900" font-size="220"
+          fill="url(#rainbow)"
+          stroke="#fff" stroke-width="4">ST</text>
+    <!-- Highlight blanc en haut des lettres -->
+    <text x="256" y="320" text-anchor="middle"
+          font-family="'Lilita One', 'Arial Black', sans-serif"
+          font-weight="900" font-size="220"
+          fill="url(#shine)">ST</text>
+  </g>
+
+  <!-- Petit texte "SUPER" et "TETRIS" autour (optionnel) -->
+  <text x="256" y="370" text-anchor="middle"
+        font-family="'Lilita One', sans-serif" font-weight="900"
+        font-size="32" fill="#ffd23f"
+        stroke="#7c3aed" stroke-width="1.5"
+        letter-spacing="3">TETRIS</text>
+</svg>
