@@ -1,0 +1,3 @@
+# SPA fallback : toutes les routes inconnues → index.html
+# (Le routing client React gère la suite)
+/*    /index.html   200
