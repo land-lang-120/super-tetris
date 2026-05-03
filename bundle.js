@@ -1379,8 +1379,8 @@
    pour faciliter intégration React + undo éventuel).
 
    Boosters :
-     ❄️ FREEZE  : suspend la gravité pendant 3000ms (3s)
-                  → met G.freezeUntil = now + 3000
+     ❄️ FREEZE  : suspend la gravité pendant 15000ms (15s)
+                  → met G.freezeUntil = now + 15000
                   → le tick gameLoop respecte ce flag (gravité = 0)
 
      ⚡ LASER   : détruit la ligne la plus basse non vide
@@ -1412,7 +1412,7 @@
     magnet: 8000
   };
   var DURATIONS = {
-    freeze: 3000 // ms d'immobilisation gravité
+    freeze: 15000 // ms d'immobilisation gravité (15s)
   };
 
   /**
