@@ -1,105 +1,122 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
-    <!-- Fond royal blue → violet diagonal (couleurs de l'app) -->
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"  stop-color="#1a2a6e"/>
-      <stop offset="50%" stop-color="#2d1b6e"/>
+    <!-- Fond royal blue → violet diagonal -->
+    <radialGradient id="bg" cx="50%" cy="35%" r="80%">
+      <stop offset="0%"  stop-color="#1a3a8e"/>
+      <stop offset="50%" stop-color="#1a2a6e"/>
       <stop offset="100%" stop-color="#0b1238"/>
+    </radialGradient>
+
+    <!-- Bowl violet gradient (from HomeScreen Trophy) -->
+    <linearGradient id="bowl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#a855f7"/>
+      <stop offset="50%"  stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
     </linearGradient>
-    <!-- Lettre S et T en arc-en-ciel -->
-    <linearGradient id="rainbow" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"   stop-color="#ef4444"/>
-      <stop offset="20%"  stop-color="#f97316"/>
-      <stop offset="40%"  stop-color="#ffd23f"/>
-      <stop offset="60%"  stop-color="#22c55e"/>
-      <stop offset="80%"  stop-color="#06b6d4"/>
-      <stop offset="100%" stop-color="#a855f7"/>
+
+    <!-- Lettre T gold gradient -->
+    <linearGradient id="t-shape" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffec80"/>
+      <stop offset="50%"  stop-color="#ffd23f"/>
+      <stop offset="100%" stop-color="#d97706"/>
     </linearGradient>
-    <!-- Reflet brillant haut -->
+
+    <!-- Glow violet du trophée -->
+    <radialGradient id="glow">
+      <stop offset="0%"   stop-color="rgba(168,85,247,0.4)"/>
+      <stop offset="100%" stop-color="rgba(168,85,247,0)"/>
+    </radialGradient>
+
+    <!-- Reflet brillant -->
     <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"  stop-color="rgba(255,255,255,0.35)"/>
-      <stop offset="50%" stop-color="rgba(255,255,255,0.05)"/>
-      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+      <stop offset="0%"  stop-color="rgba(255,255,255,0.4)"/>
+      <stop offset="50%" stop-color="rgba(255,255,255,0)"/>
     </linearGradient>
   </defs>
 
-  <!-- Fond rond avec coins très arrondis (style Android adaptive icon) -->
+  <!-- Fond carré arrondi (style Android adaptive icon, safe zone 80%) -->
   <rect width="512" height="512" rx="96" fill="url(#bg)"/>
 
-  <!-- Étoiles décoratives en arrière-plan -->
-  <g fill="rgba(255,255,255,0.4)">
+  <!-- Étoiles décoratives -->
+  <g fill="rgba(255,255,255,0.5)">
     <circle cx="80"  cy="100" r="3"/>
-    <circle cx="430" cy="80"  r="2"/>
+    <circle cx="430" cy="80"  r="2.5"/>
     <circle cx="60"  cy="380" r="2.5"/>
     <circle cx="450" cy="420" r="3"/>
-    <circle cx="200" cy="60"  r="1.5"/>
+    <circle cx="200" cy="60"  r="1.8"/>
     <circle cx="380" cy="200" r="2"/>
-    <circle cx="120" cy="450" r="1.5"/>
-    <circle cx="320" cy="450" r="2"/>
+    <circle cx="120" cy="150" r="1.5"/>
+    <circle cx="420" cy="320" r="2"/>
+    <circle cx="100" cy="280" r="1.8"/>
   </g>
 
-  <!-- ─── PIÈCES TETRIS décoratives autour ─── -->
-  <!-- T-piece violet en haut-gauche -->
-  <g>
-    <rect x="42" y="40" width="40" height="40" rx="6" fill="#a855f7" stroke="#7c3aed" stroke-width="2.5"/>
-    <rect x="2"  y="80" width="40" height="40" rx="6" fill="#a855f7" stroke="#7c3aed" stroke-width="2.5"/>
-    <rect x="42" y="80" width="40" height="40" rx="6" fill="#a855f7" stroke="#7c3aed" stroke-width="2.5"/>
-    <rect x="82" y="80" width="40" height="40" rx="6" fill="#a855f7" stroke="#7c3aed" stroke-width="2.5"/>
-    <!-- Highlight -->
-    <rect x="46" y="44" width="14" height="6" rx="3" fill="rgba(255,255,255,0.5)"/>
+  <!-- Glow violet derrière le trophée (effet "flotte") -->
+  <ellipse cx="256" cy="280" rx="180" ry="120" fill="url(#glow)"/>
+
+  <!-- ─── TROPHÉE 3D (réplique du Trophy de HomeScreen.jsx, scalé ×1.7) ─── -->
+  <!-- Centré entre x=85 et x=425 (largeur 340), y=110 à y=440 -->
+  <g transform="translate(73, 70) scale(1.755)">
+    <!-- Ombre sous socle -->
+    <ellipse cx="110" cy="222" rx="78" ry="14" fill="rgba(0,0,0,0.5)"/>
+
+    <!-- Socle violet 3D -->
+    <rect x="46" y="180" width="128" height="36" rx="6" fill="#5b21b6"/>
+    <rect x="46" y="180" width="128" height="12" rx="6" fill="#7c3aed"/>
+
+    <!-- Pied du trophée -->
+    <rect x="80" y="155" width="60" height="28" fill="#5b21b6" rx="4"/>
+    <rect x="80" y="155" width="60" height="8" fill="#a855f7" rx="4"/>
+
+    <!-- Bowl du trophée — coupe violet 3D -->
+    <path
+      d="M 38 50 Q 38 30, 60 30 L 160 30 Q 182 30, 182 50 L 175 145 Q 170 165, 110 165 Q 50 165, 45 145 Z"
+      fill="url(#bowl)"
+      stroke="#3b0764"
+      stroke-width="3"/>
+
+    <!-- Lettre T or sur le trophée -->
+    <path
+      d="M 65 60 L 155 60 L 155 80 L 125 80 L 125 145 L 95 145 L 95 80 L 65 80 Z"
+      fill="url(#t-shape)"
+      stroke="#92400e"
+      stroke-width="2.5"/>
+
+    <!-- Highlight blanc sur le bord du bowl -->
+    <path
+      d="M 50 45 Q 50 38, 60 38 L 160 38"
+      stroke="rgba(255,255,255,0.5)"
+      stroke-width="3"
+      fill="none"
+      stroke-linecap="round"/>
+
+    <!-- Reflet brillant en haut du bowl -->
+    <path
+      d="M 50 36 Q 60 30, 110 30 L 160 30 Q 170 33, 170 40 L 165 60 Q 130 50, 90 55 Q 60 58, 50 50 Z"
+      fill="url(#shine)"/>
+
+    <!-- Étincelles autour du trophée -->
+    <g fill="#fff" opacity="0.9">
+      <path d="M 20 60 L 23 54 L 26 60 L 23 66 Z"/>
+      <path d="M 195 80 L 198 75 L 201 80 L 198 85 Z"/>
+      <path d="M 15 140 L 18 136 L 21 140 L 18 144 Z"/>
+      <path d="M 200 160 L 203 156 L 206 160 L 203 164 Z"/>
+    </g>
   </g>
 
-  <!-- L-piece orange en haut-droite -->
+  <!-- "SUPER TETRIS" texte sous le trophée -->
   <g>
-    <rect x="390" y="40" width="40" height="40" rx="6" fill="#f97316" stroke="#ea580c" stroke-width="2.5"/>
-    <rect x="390" y="80" width="40" height="40" rx="6" fill="#f97316" stroke="#ea580c" stroke-width="2.5"/>
-    <rect x="390" y="120" width="40" height="40" rx="6" fill="#f97316" stroke="#ea580c" stroke-width="2.5"/>
-    <rect x="430" y="120" width="40" height="40" rx="6" fill="#f97316" stroke="#ea580c" stroke-width="2.5"/>
-    <rect x="394" y="44" width="14" height="6" rx="3" fill="rgba(255,255,255,0.5)"/>
-  </g>
-
-  <!-- I-piece cyan en bas -->
-  <g>
-    <rect x="120" y="430" width="40" height="40" rx="6" fill="#06b6d4" stroke="#0891b2" stroke-width="2.5"/>
-    <rect x="160" y="430" width="40" height="40" rx="6" fill="#06b6d4" stroke="#0891b2" stroke-width="2.5"/>
-    <rect x="200" y="430" width="40" height="40" rx="6" fill="#06b6d4" stroke="#0891b2" stroke-width="2.5"/>
-    <rect x="240" y="430" width="40" height="40" rx="6" fill="#06b6d4" stroke="#0891b2" stroke-width="2.5"/>
-    <rect x="124" y="434" width="14" height="6" rx="3" fill="rgba(255,255,255,0.5)"/>
-  </g>
-
-  <!-- O-piece jaune en bas-droite -->
-  <g>
-    <rect x="380" y="380" width="48" height="48" rx="6" fill="#facc15" stroke="#eab308" stroke-width="2.5"/>
-    <rect x="428" y="380" width="48" height="48" rx="6" fill="#facc15" stroke="#eab308" stroke-width="2.5"/>
-    <rect x="380" y="428" width="48" height="48" rx="6" fill="#facc15" stroke="#eab308" stroke-width="2.5"/>
-    <rect x="428" y="428" width="48" height="48" rx="6" fill="#facc15" stroke="#eab308" stroke-width="2.5"/>
-    <rect x="384" y="384" width="20" height="8" rx="4" fill="rgba(255,255,255,0.5)"/>
-  </g>
-
-  <!-- ─── LETTRES "ST" GIANT au centre ─── -->
-  <g>
-    <!-- Ombre portée des lettres -->
-    <text x="256" y="320" text-anchor="middle"
+    <!-- Ombre du texte -->
+    <text x="256" y="478" text-anchor="middle"
           font-family="'Lilita One', 'Arial Black', sans-serif"
-          font-weight="900" font-size="220"
-          fill="#000" opacity="0.4" dy="6">ST</text>
-    <!-- Lettres principales en arc-en-ciel -->
-    <text x="256" y="320" text-anchor="middle"
+          font-weight="900" font-size="38"
+          fill="#000" opacity="0.5" dy="3"
+          letter-spacing="2">SUPER TETRIS</text>
+    <!-- Texte gold -->
+    <text x="256" y="478" text-anchor="middle"
           font-family="'Lilita One', 'Arial Black', sans-serif"
-          font-weight="900" font-size="220"
-          fill="url(#rainbow)"
-          stroke="#fff" stroke-width="4">ST</text>
-    <!-- Highlight blanc en haut des lettres -->
-    <text x="256" y="320" text-anchor="middle"
-          font-family="'Lilita One', 'Arial Black', sans-serif"
-          font-weight="900" font-size="220"
-          fill="url(#shine)">ST</text>
+          font-weight="900" font-size="38"
+          fill="url(#t-shape)"
+          stroke="#7c3aed" stroke-width="1.5"
+          letter-spacing="2">SUPER TETRIS</text>
   </g>
-
-  <!-- Petit texte "SUPER" et "TETRIS" autour (optionnel) -->
-  <text x="256" y="370" text-anchor="middle"
-        font-family="'Lilita One', sans-serif" font-weight="900"
-        font-size="32" fill="#ffd23f"
-        stroke="#7c3aed" stroke-width="1.5"
-        letter-spacing="3">TETRIS</text>
 </svg>

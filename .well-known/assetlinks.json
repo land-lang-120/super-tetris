@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.clonex.supertetris",
+    "sha256_cert_fingerprints": ["8C:C9:0D:A5:8D:5B:54:72:70:58:4A:6C:BE:96:8B:5E:42:B6:2C:65:E2:C7:46:80:44:63:ED:6F:49:29:6C:DB"]
+  }
+}]

@@ -32,8 +32,11 @@ const config = {
   appVersionCode: 1,
   display: "standalone",
   orientation: "portrait",
+  // Splash natif Android = rouge avec logo blanc Byer (apparition brève au
+  // tap icône). Statut bar reste rouge pour le branding. La page blanche
+  // d'index.html prend le relais immédiatement après.
   themeColor: "#FF5A5F",
-  backgroundColor: "#FFFFFF",
+  backgroundColor: "#FF5A5F",
   navigationColor: "#FFFFFF",
   navigationColorDark: "#FFFFFF",
   navigationDividerColor: "#FFFFFF",

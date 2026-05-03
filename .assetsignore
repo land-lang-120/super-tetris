@@ -19,6 +19,12 @@ bun.lock
 bun.lockb
 yarn.lock
 wrangler.jsonc
+scripts
+
+# PWABuilder packages (signed with our keystore) — JAMAIS public
+*.zip
+*-keystore-passwords.txt
+icons/icon-source.svg
 
 # Doc — privée
 CAHIER-CHARGES.md
@@ -31,3 +37,6 @@ src/game
 src/hooks
 src/App.jsx
 src/main.jsx
+
+# IMPORTANT : on garde .well-known/* pour servir assetlinks.json
+# (TWA Digital Asset Links pour Play Store)
