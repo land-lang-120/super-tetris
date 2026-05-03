@@ -1836,15 +1836,21 @@ window.Starfield = function Starfield({
 "use strict";
 
 /* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — HUD (Heads-Up Display) v2
+   Super Tetris — HUD (Heads-Up Display) v3
    ═══════════════════════════════════════════════════════════════════
-   Hiérarchie visuelle revue (retour Pino 2026-05-03) :
-     - Top row : SCORE (très grand, gold) + TIME (côté à côté, équivalents)
-     - Middle row : LEVEL / COMBO / NEXT / HOLD (badges plus petits)
-     - Target en sous-titre du score (ex: "/ 17 lignes")
+   v3 (Pino 2026-05-03 #2) :
+     - LINES retiré (peu utile, redondant avec score)
+     - NEXT et HOLD intégrés dans la rangée des badges (au lieu d'une
+       3e rangée qui bouffait ~70px)
+     - Économie verticale → canvas + boosters plus grands
 
-   Le score doit être assez grand pour être lisible pendant le jeu et
-   sur la capture pour le classement (futur tournoi).
+   Layout final :
+     ┌─────────────────────────────────────┐
+     │  SCORE 12 345  │  TIME  01:23       │  ← Hero row
+     ├──────┬─────────┬──────────┬─────────┤
+     │ LVL  │  COMBO  │   NEXT   │  HOLD   │  ← Mid row (4 cols)
+     │  3   │   ×2    │   ▣▣     │   ▣     │
+     └──────┴─────────┴──────────┴─────────┘
    ═══════════════════════════════════════════════════════════════════ */
 
 const {
@@ -1868,16 +1874,15 @@ function HUD({
     if (!cv || !window.STRender) return;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    window.STRender.drawMiniPiece(ctx, nextPiece || null, 12);
+    window.STRender.drawMiniPiece(ctx, nextPiece || null, 10);
   }, [nextPiece]);
   useEffectHUD(() => {
     const cv = holdCanvasRef.current;
     if (!cv || !window.STRender) return;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    window.STRender.drawMiniPiece(ctx, holdPiece || null, 12);
+    window.STRender.drawMiniPiece(ctx, holdPiece || null, 10);
   }, [holdPiece]);
-  const remaining = Math.max(0, (targetLines || 0) - (currentLines || 0));
   return /*#__PURE__*/React.createElement("div", {
     style: SHUD.root
   }, /*#__PURE__*/React.createElement("div", {
@@ -1906,17 +1911,10 @@ function HUD({
     label: "COMBO",
     value: combo > 0 ? "×" + combo : "×0",
     color: combo > 0 ? "var(--gold)" : "rgba(255,255,255,0.5)"
-  }), /*#__PURE__*/React.createElement(BadgeStat, {
-    label: "LINES",
-    value: currentLines || 0,
-    color: "var(--green-l)",
-    sub: remaining < 999 ? "/ " + remaining + " restant" : null
-  })), /*#__PURE__*/React.createElement("div", {
-    style: SHUD.miniRow
-  }, /*#__PURE__*/React.createElement(MiniCanvas, {
+  }), /*#__PURE__*/React.createElement(BadgeMini, {
     label: "NEXT",
     ref_: nextCanvasRef
-  }), /*#__PURE__*/React.createElement(MiniCanvas, {
+  }), /*#__PURE__*/React.createElement(BadgeMini, {
     label: "HOLD",
     ref_: holdCanvasRef
   })));
@@ -1942,20 +1940,25 @@ function BadgeStat({
     style: SHUD.badgeSub
   }, sub));
 }
-function MiniCanvas({
+
+/* BadgeMini : même apparence/dimensions qu'un BadgeStat, mais le
+   "value" est un mini canvas (pour NEXT et HOLD).
+   Tient pile dans la grille 4 colonnes du midRow. */
+function BadgeMini({
   label,
   ref_
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    style: SHUD.miniCard
+    style: SHUD.badge
   }, /*#__PURE__*/React.createElement("div", {
-    style: SHUD.miniLabel
+    style: SHUD.badgeLabel
   }, label), /*#__PURE__*/React.createElement("canvas", {
     ref: ref_,
-    width: 56,
-    height: 40,
+    width: 48,
+    height: 32,
     style: {
-      display: "block"
+      display: "block",
+      marginTop: 1
     }
   }));
 }
@@ -2067,31 +2070,9 @@ const SHUD = {
     color: "rgba(255,255,255,0.5)",
     fontWeight: 700,
     marginTop: 1
-  },
-  /* ═══ MINI ROW (Next / Hold) ═══ */
-  miniRow: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  miniCard: {
-    background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
-    border: "1.5px solid var(--purple)",
-    borderRadius: 10,
-    padding: "4px 10px",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 3px 0 rgba(0,0,0,0.25)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center"
-  },
-  miniLabel: {
-    fontSize: 9,
-    fontWeight: 800,
-    color: "var(--sky)",
-    letterSpacing: 1.5,
-    marginBottom: 2
   }
+
+  /* (v3) miniRow + miniCard supprimés : NEXT/HOLD intégrés dans midRow */
 };
 window.HUD = HUD;
 
@@ -3825,17 +3806,15 @@ const SGS = {
     borderRadius: 10,
     boxShadow: "0 0 24px rgba(124,58,237,0.5), inset 0 0 0 3px rgba(124,58,237,0.7)",
     touchAction: "none",
-    /* v1.4 : canvas MAXIMUM. Stratégie :
-       - hauteur = TOUTE la hauteur disponible (jusqu'à 92vh)
-         on retire juste HUD top (~190px) + boosters bottom (~110px) + marges
-       - largeur = hauteur / 2  (ratio Tetris 10×20)
-       - maxWidth empêche le débordement horizontal sur écrans étroits
-         (mobile portrait quand la hauteur calculée serait trop large) */
-    height: "min(calc(100vh - 320px), calc((100vw - 24px) * 2), 92vh)",
+    /* v1.5 : encore plus grand (HUD condensé en 2 rangées au lieu de 3).
+       HUD ~140px + boosters ~100px + marges ~20px ≈ 260px à retirer.
+       Sur 1920×1080 → ~410×820 (vs 530×1060 ratio idéal mais limité
+       par maxWidth = viewport). Sur mobile portrait full-width. */
+    height: "min(calc(100vh - 250px), calc((100vw - 24px) * 2), 95vh)",
     width: "auto",
     aspectRatio: "1 / 2",
     maxWidth: "calc(100vw - 24px)",
-    minHeight: "440px"
+    minHeight: "480px"
   },
   comboBanner: {
     position: "absolute",

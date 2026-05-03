@@ -1,13 +1,19 @@
 /* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — HUD (Heads-Up Display) v2
+   Super Tetris — HUD (Heads-Up Display) v3
    ═══════════════════════════════════════════════════════════════════
-   Hiérarchie visuelle revue (retour Pino 2026-05-03) :
-     - Top row : SCORE (très grand, gold) + TIME (côté à côté, équivalents)
-     - Middle row : LEVEL / COMBO / NEXT / HOLD (badges plus petits)
-     - Target en sous-titre du score (ex: "/ 17 lignes")
+   v3 (Pino 2026-05-03 #2) :
+     - LINES retiré (peu utile, redondant avec score)
+     - NEXT et HOLD intégrés dans la rangée des badges (au lieu d'une
+       3e rangée qui bouffait ~70px)
+     - Économie verticale → canvas + boosters plus grands
 
-   Le score doit être assez grand pour être lisible pendant le jeu et
-   sur la capture pour le classement (futur tournoi).
+   Layout final :
+     ┌─────────────────────────────────────┐
+     │  SCORE 12 345  │  TIME  01:23       │  ← Hero row
+     ├──────┬─────────┬──────────┬─────────┤
+     │ LVL  │  COMBO  │   NEXT   │  HOLD   │  ← Mid row (4 cols)
+     │  3   │   ×2    │   ▣▣     │   ▣     │
+     └──────┴─────────┴──────────┴─────────┘
    ═══════════════════════════════════════════════════════════════════ */
 
 const { useEffect: useEffectHUD, useRef: useRefHUD } = React;
@@ -21,7 +27,7 @@ function HUD({ time, targetLines, currentLines, score, level, combo, nextPiece, 
     if (!cv || !window.STRender) return;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    window.STRender.drawMiniPiece(ctx, nextPiece || null, 12);
+    window.STRender.drawMiniPiece(ctx, nextPiece || null, 10);
   }, [nextPiece]);
 
   useEffectHUD(() => {
@@ -29,10 +35,8 @@ function HUD({ time, targetLines, currentLines, score, level, combo, nextPiece, 
     if (!cv || !window.STRender) return;
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    window.STRender.drawMiniPiece(ctx, holdPiece || null, 12);
+    window.STRender.drawMiniPiece(ctx, holdPiece || null, 10);
   }, [holdPiece]);
-
-  const remaining = Math.max(0, (targetLines || 0) - (currentLines || 0));
 
   return (
     <div style={SHUD.root}>
@@ -49,17 +53,22 @@ function HUD({ time, targetLines, currentLines, score, level, combo, nextPiece, 
         </div>
       </div>
 
-      {/* ═══ MIDDLE ROW : LEVEL / COMBO / TARGET ═══ */}
+      {/* ═══ MIDDLE ROW (v3) : LVL / COMBO / NEXT / HOLD ═══
+          NEXT et HOLD intégrés ici → libère ~70px verticaux pour le
+          canvas et les boosters. LINES retiré (peu utile, redondant). */}
       <div style={SHUD.midRow}>
-        <BadgeStat label="LVL"   value={level || 1} color="var(--purple-l)" />
-        <BadgeStat label="COMBO" value={combo > 0 ? "×" + combo : "×0"} color={combo > 0 ? "var(--gold)" : "rgba(255,255,255,0.5)"} />
-        <BadgeStat label="LINES" value={currentLines || 0} color="var(--green-l)" sub={remaining < 999 ? "/ " + remaining + " restant" : null} />
-      </div>
-
-      {/* ═══ BOTTOM ROW : NEXT / HOLD (mini canvases) ═══ */}
-      <div style={SHUD.miniRow}>
-        <MiniCanvas label="NEXT" ref_={nextCanvasRef} />
-        <MiniCanvas label="HOLD" ref_={holdCanvasRef} />
+        <BadgeStat
+          label="LVL"
+          value={level || 1}
+          color="var(--purple-l)"
+        />
+        <BadgeStat
+          label="COMBO"
+          value={combo > 0 ? "×" + combo : "×0"}
+          color={combo > 0 ? "var(--gold)" : "rgba(255,255,255,0.5)"}
+        />
+        <BadgeMini label="NEXT" ref_={nextCanvasRef} />
+        <BadgeMini label="HOLD" ref_={holdCanvasRef} />
       </div>
     </div>
   );
@@ -76,11 +85,19 @@ function BadgeStat({ label, value, color, sub }) {
   );
 }
 
-function MiniCanvas({ label, ref_ }) {
+/* BadgeMini : même apparence/dimensions qu'un BadgeStat, mais le
+   "value" est un mini canvas (pour NEXT et HOLD).
+   Tient pile dans la grille 4 colonnes du midRow. */
+function BadgeMini({ label, ref_ }) {
   return (
-    <div style={SHUD.miniCard}>
-      <div style={SHUD.miniLabel}>{label}</div>
-      <canvas ref={ref_} width={56} height={40} style={{ display: "block" }} />
+    <div style={SHUD.badge}>
+      <div style={SHUD.badgeLabel}>{label}</div>
+      <canvas
+        ref={ref_}
+        width={48}
+        height={32}
+        style={{ display: "block", marginTop: 1 }}
+      />
     </div>
   );
 }
@@ -197,30 +214,7 @@ const SHUD = {
     marginTop: 1,
   },
 
-  /* ═══ MINI ROW (Next / Hold) ═══ */
-  miniRow: {
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  miniCard: {
-    background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
-    border: "1.5px solid var(--purple)",
-    borderRadius: 10,
-    padding: "4px 10px",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 3px 0 rgba(0,0,0,0.25)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-  },
-  miniLabel: {
-    fontSize: 9,
-    fontWeight: 800,
-    color: "var(--sky)",
-    letterSpacing: 1.5,
-    marginBottom: 2,
-  },
+  /* (v3) miniRow + miniCard supprimés : NEXT/HOLD intégrés dans midRow */
 };
 
 window.HUD = HUD;

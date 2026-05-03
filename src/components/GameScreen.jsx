@@ -583,17 +583,15 @@ const SGS = {
     borderRadius: 10,
     boxShadow: "0 0 24px rgba(124,58,237,0.5), inset 0 0 0 3px rgba(124,58,237,0.7)",
     touchAction: "none",
-    /* v1.4 : canvas MAXIMUM. Stratégie :
-       - hauteur = TOUTE la hauteur disponible (jusqu'à 92vh)
-         on retire juste HUD top (~190px) + boosters bottom (~110px) + marges
-       - largeur = hauteur / 2  (ratio Tetris 10×20)
-       - maxWidth empêche le débordement horizontal sur écrans étroits
-         (mobile portrait quand la hauteur calculée serait trop large) */
-    height: "min(calc(100vh - 320px), calc((100vw - 24px) * 2), 92vh)",
+    /* v1.5 : encore plus grand (HUD condensé en 2 rangées au lieu de 3).
+       HUD ~140px + boosters ~100px + marges ~20px ≈ 260px à retirer.
+       Sur 1920×1080 → ~410×820 (vs 530×1060 ratio idéal mais limité
+       par maxWidth = viewport). Sur mobile portrait full-width. */
+    height: "min(calc(100vh - 250px), calc((100vw - 24px) * 2), 95vh)",
     width: "auto",
     aspectRatio: "1 / 2",
     maxWidth: "calc(100vw - 24px)",
-    minHeight: "440px",
+    minHeight: "480px",
   },
 
   comboBanner: {
