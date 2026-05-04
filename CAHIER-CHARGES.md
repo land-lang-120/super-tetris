@@ -1,43 +1,63 @@
 # 🎮 Super Tetris — Cahier de charges
 
 > Jeu de puzzle Tetris avancé, réplique du Tetris officiel mobile, avec boosters, roue de la fortune, classement mondial, missions et pubs récompensées.
-> Version : **1.9** — 2026-05-03 (musique iconique + boosters fidèles Tetroid)
+> Version : **1.13** — 2026-05-04 (3 fixes critiques par Claude GitHub App + CI/CD)
 > Studio : CloneX Studio (Joseph Pino Lando Njoua)
-> Stack : **React 18** (CDN) + **Babel pré-transpilé** (pattern Byer) + **Canvas 2D** + **localStorage** + **Cloudflare Workers Static Assets** (hébergement) + **Google Play Billing** (achats intégrés futurs)
-> URL prod : **`https://super-tetris.landonjouajosephpino.workers.dev`** (déployée en mode Workers Static Assets via wrangler API token)
+> Stack : **React 18** (CDN) + **Babel pré-transpilé** (pattern Byer) + **Canvas 2D** + **localStorage** + **Cloudflare Workers Static Assets** (hébergement) + **GitHub Actions CI/CD** + **Google Play Billing** (achats intégrés futurs)
+> URL prod : **`https://super-tetris.landonjouajosephpino.workers.dev`** (déployée auto sur push main via GHA)
 > Repo : `https://github.com/land-lang-120/super-tetris` (public)
+> CI/CD : GitHub Actions (`.github/workflows/deploy.yml`) — auto-deploy sur push main + branches `claude/**`
 > Voir aussi : `ARCHITECTURE.md` (détails techniques) · `PROGRESS.md` (suivi du dev)
 
 ---
 
-## 0. 📊 État d'avancement (snapshot 2026-05-03 — V1.9 EN PROD 🎉)
+## 0. 📊 État d'avancement (snapshot 2026-05-04 — V1.13 EN PROD 🎉)
 
-### 🆕 RÉSUMÉ — où on en est NOW (3 mai 2026, ~04h30)
+### 🆕 RÉSUMÉ — où on en est NOW (4 mai 2026, ~02h00)
 
 | Aspect | Statut |
 |---|---|
-| 🌐 **Déploiement live** | ✅ `super-tetris.landonjouajosephpino.workers.dev` — v1.9 déployée via wrangler API token |
+| 🌐 **Déploiement live** | ✅ `super-tetris.landonjouajosephpino.workers.dev` — v1.13 (SW v1.13 + assetlinks A5:D1...) |
+| 🤖 **CI/CD GitHub Actions** | ✅ Auto-deploy sur push main + branches `claude/**` (secret `CLOUDFLARE_API_TOKEN` configuré) |
 | 🎮 **Gameplay core** | ✅ Marathon, 7 pièces, SRS, hold, ghost, hard/soft drop, T-spin, scoring Guideline |
-| 🍬 **Boosters** | ✅ Les 4 fonctionnels (FREEZE 15s, LASER 4 lignes+gravity, METEOR 10 col×3 cellules+gravity, MAGNET multi-pass+lines) — fidèles Tetroid |
-| 🎵 **Audio** | ✅ SFX synthétisés (move/rotate/lock/clear/etc.) + musique iconique Korobeiniki en boucle (port Tetroid) |
+| 🍬 **Boosters** | ✅ Les 4 fonctionnels avec **VFX style Tetroid** : FREEZE (voile bleu+flocons+cristaux), LASER (beams qui balaient), METEOR (10 météorites avec trails), MAGNET (vagues violettes) |
+| 🔊 **Sons boosters** | ✅ Sons spécifiques par booster (boosterFreeze/Laser/Meteor/Magnet) + parité Tetroid |
+| 🎵 **Musique** | ✅ Korobeiniki en boucle (mélodie + basse + drums) — port Tetroid |
 | 📳 **Haptics** | ✅ Vibrations Android avec patterns par action |
 | 💥 **Particules** | ✅ Burst au clear de ligne + explosions + shockwaves boosters |
-| 🎨 **Look bonbon** | ✅ Boosters circulaires style Tetroid (cerclage blanc/couleur, reflets, pastille verte) |
+| 🎨 **Tetrominos 3D** | ✅ **v1.13** : `drawCell` refait avec 5+ couches (gradient + reflets + inner shadow + highlight rond) — vraies cellules bombées style btn-3d |
+| 🎯 **Tap rotation** | ✅ **v1.13** : double-tap=hold supprimé (cause des "pièces qui disparaissent"). Hold via Shift/C uniquement |
+| 📐 **Canvas net** | ✅ **v1.13** : retour au sizing fixe 400×800 (la v1.12 dynamic DPR causait du flou) |
 | 🏠 **HomeScreen** | ✅ Trophée 3D + RECRUE centré + boutons Play/Wheel/Settings + bandeau bas |
 | ⚙️ **SettingsScreen** | ✅ Sound + Music + Vibro + Langue + Reset double-confirm |
 | 🎰 **FortuneWheel** | ✅ 8 segments pondérés + animation + 1 spin gratuit/24h |
-| 💀 **GameOverScreen** | ✅ Médaillon SVG + stats + RÉESSAYER + Pub continue (stub) |
-| 📱 **PWA** | ✅ Manifest + SW v1.9 (network-first) + icônes 192/512 |
+| 💀 **GameOverScreen** | ✅ Médaillon SVG + stats + bouton **📤 Partager** (Web Share API) + RÉESSAYER + Pub continue (stub) |
+| 📱 **PWA** | ✅ Manifest + SW v1.13 (network-first) + icônes 192/512 PNG |
+| 📦 **APK Android** | ✅ Signed AAB + APK régénéré v1.13 — accessible sur https://super-tetris.workers.dev/download |
+| 🔐 **Assetlinks TWA** | ✅ Fingerprint A5:D1:9B:25:47:4C... aligné prod ↔ APK → mode standalone fullscreen Android |
+| 🤖 **App GitHub Claude** | ✅ Installée sur les 15+ repos land-lang-120 (peut taguer `@claude` dans PR/issue pour review/fix) |
 | 🚧 **Pas encore** | ❌ Tournois (modèle C, threshold $10K), parrainage, leaderboard Firebase, 12 langues, AdMob réel, Google Play Billing, missions, skins |
 
 ### 📍 URL de prod
 **`https://super-tetris.landonjouajosephpino.workers.dev`**
 
-⚠️ Note : URL en `.workers.dev` parce que Cloudflare a auto-créé le projet en mode **"Workers Static Assets"** (la nouvelle plateforme qui remplace Pages classique). Le déploiement se fait via :
+⚠️ URL en `.workers.dev` parce que Cloudflare a auto-créé le projet en mode **"Workers Static Assets"** (nouvelle plateforme qui remplace Pages classique).
+
+### 🚀 Workflow déploiement actuel (v1.13+)
+**Auto-deploy via GitHub Actions** (préféré) :
+- Push sur `main` ou branche `claude/**` → GHA build + deploy automatique
+- Le secret `CLOUDFLARE_API_TOKEN` est configuré dans GitHub repo settings
+- Workflow : `.github/workflows/deploy.yml` (utilise wrangler@4)
+
+**Deploy manuel** (en cas d'urgence ou debug) :
 ```bash
 CLOUDFLARE_API_TOKEN="cfut_..." npx wrangler deploy
 ```
-Le token est valide 1 mois (jusqu'au 2026-06-03). Penser à renouveler avant.
+
+⚠️ Le token Cloudflare expire après 1 mois max. Renouveler via `https://dash.cloudflare.com/profile/api-tokens` puis update via :
+```bash
+echo "<NEW_TOKEN>" | gh secret set CLOUDFLARE_API_TOKEN -R land-lang-120/super-tetris
+```
 
 ---
 
@@ -56,12 +76,20 @@ Le token est valide 1 mois (jusqu'au 2026-06-03). Penser à renouveler avant.
 | **v1.8** | 3/5 04:00 | **Musique iconique Korobeiniki** (port Tetroid : mélodie + basse + drums + scheduler) + canvas COLLE au HUD |
 | **v1.8.1** | 3/5 04:15 | Hotfix ReferenceError "paused before init" (ordre des hooks) |
 | **v1.9** | 3/5 04:30 | **Boosters refondus FIDÈLES Tetroid** : LASER détruit jusqu'à 4 lignes + gravity, METEOR 1 météore par colonne (10 au total) + 3 cellules verticales + gravity, MAGNET multi-pass + clear lines en cascade. Compteurs starter → 30 de chaque pour test. |
+| **v1.9.1** | 3/5 11:20 | Manifest PWABuilder-ready (id, scope, screenshots, shortcuts) |
+| **v1.9.2** | 3/5 11:25 | Icons PNG (192/512/maskable) générées via sharp + PWABuilder unblock |
+| **v1.9.3** | 3/5 11:55 | assetlinks.json déployé (TWA Digital Asset Links) |
+| **v1.10** | 3/5 12:30 | **Bouton 📤 Partager mon score** (Web Share API + fallback clipboard) sur GameOver |
+| **v1.11** | 3/5 13:30 | Canvas pixel-perfect avec ResizeObserver (tentative fix flou — fonctionnait mais incomplet) |
+| **v1.12** | 3/5 21:30 | ⚠️ **RÉGRESSION** : useLayoutEffect canvas + double-tap 180ms + booster-fx.js → empire le rendu (test Pino négatif) |
+| **v1.13** | 4/5 02:00 | ✅ **3 BUGS ST FIXÉS par Claude GitHub App** (branche `claude/super-tetris-byer-dev-YRgBg` mergée) : 1) revert canvas fixe 400×800 (fix flou) ; 2) suppression double-tap=hold (fix disparition) ; 3) logique boosters IMMÉDIATE + VFX en parallèle (fix race condition). BONUS : `drawCell` 5+ couches (3D vraiment bombé), sons par booster, GitHub Actions CI/CD auto-deploy. |
 
-### 📦 Bundle actuel
-- **24 fichiers** game/components/hooks → `bundle.js`
-- **170 KB** non-gzippé (~50 KB gzip)
+### 📦 Bundle actuel (v1.13)
+- **25 fichiers** game/components/hooks/booster-fx → `bundle.js`
+- **~180 KB** non-gzippé (~55 KB gzip)
 - Build : `node build.js` (~3-9 sec)
-- Deploy : `npx wrangler deploy` avec `CLOUDFLARE_API_TOKEN` env var (~30 sec)
+- Deploy : auto via GHA OU manuel `npx wrangler deploy`
+- APK : `node scripts/build-aab.js` (régen via PWABuilder cloudapk API)
 
 ---
 
@@ -203,13 +231,24 @@ Le token est valide 1 mois (jusqu'au 2026-06-03). Penser à renouveler avant.
 
 ---
 
-## 0quater. 🐛 BUGS POST-V1.11 — Diagnostic + checklist senior par bug (3 mai soir)
+## 0quater. 🐛 BUGS POST-V1.11 — Diagnostic + checklist senior par bug
 
-> Pino a installé l'APK et identifié 4 bugs après 30s de test. Diagnostic
-> visuel via frames extraites des vidéos. Plan d'attaque rigoureux avec
-> validation entre chaque étape.
+> ✅ **STATUT 2026-05-04 : 3/4 bugs RÉSOLUS en v1.13** (par Claude GitHub App,
+> branche `claude/super-tetris-byer-dev-YRgBg` mergée dans main, déployée
+> en prod). Reste BUG-BYER-1 à traiter dans le repo Byer (cahier séparé).
+>
+> Diagnostic original : Pino a installé l'APK et identifié 4 bugs après
+> 30s de test. Frames extraites des vidéos test. Plan d'attaque rigoureux
+> avec validation entre chaque étape.
 
-### 🐛 BUG-ST-1 : Pièces FLOUES au démarrage de partie
+### 🐛 BUG-ST-1 : Pièces FLOUES au démarrage de partie ✅ FIXÉ v1.13
+**Solution finale** : revert au sizing fixe `width=400 height=800` (comme v1.11
+qui marchait). La CSS (aspectRatio 1/2 + height 100%) gère l'upscale visuel
+proprement. La tentative v1.12 (useLayoutEffect + dynamic sizing DPR) mesurait
+parfois un parent à 0px → backing-store ridicule = flou. KISS principle gagne.
+**À VALIDER PAR PINO** sur APK v1.13.
+
+---
 **Symptôme** : Les premières pièces apparaissent floues/pixelisées (pas en 3D).
 Après quelques secondes elles deviennent nettes.
 **Cause root** : Le canvas démarre avec `width={1} height={1}` (pour éviter le flash 0×0).
@@ -222,7 +261,17 @@ Le ResizeObserver met du temps à kicker → premier render avec backing store 1
 - [ ] Étape 3 : Vérifier que `cv.width` et `cv.height` sont bien set AVANT le 1er drawBoard
 - [ ] Étape 4 : Mesure de succès = pas de pièce floue à la 1ère frame (test : démarrer 10 parties)
 
-### 🐛 BUG-ST-2 : Pièces qui DISPARAISSENT à la rotation
+### 🐛 BUG-ST-2 : Pièces qui DISPARAISSENT à la rotation ✅ FIXÉ v1.13
+**Cause root identifiée** : double-tap mobile = HOLD. Quand l'utilisateur
+tape vite pour rotater, le 2ᵉ tap est interprété comme HOLD → la pièce
+courante est REMPLACÉE par celle en hold (ou null la 1ère fois) → impression
+de "disparition alternée".
+**Solution finale** : suppression complète du double-tap=hold sur mobile.
+Tap = rotate uniquement. Hold reste accessible via clavier (Shift / C) et
+mini-canvas HOLD du HUD.
+**À VALIDER PAR PINO** sur APK v1.13.
+
+---
 **Symptôme** : Quand l'utilisateur tourne une pièce, elle disparaît parfois (intermittent, alterné).
 "Si la 1ère disparaît, la suivante reste, puis celle d'après disparaît."
 **Causes potentielles** (à investiguer) :
@@ -238,7 +287,21 @@ Le ResizeObserver met du temps à kicker → premier render avec backing store 1
 - [ ] Étape 4 : Fix ciblé + test (rotater 50× → 0 disparition)
 - [ ] Étape 5 : Mesure de succès = vidéo de 60s sans aucune disparition
 
-### 🐛 BUG-ST-3 : VFX BOOSTERS absents
+### 🐛 BUG-ST-3 : VFX BOOSTERS absents ✅ FIXÉ v1.13
+**Solution finale** : `src/game/booster-fx.js` créé (port FIDÈLE de
+`tetroid-pro/js/boosters.js` lignes 121-442) avec les 4 systèmes VFX :
+- ⚡ LASER : flash rouge global + 4 beams qui balaient + étincelles
+- ☄️ METEOR : 10 météorites avec trails orange + boules brillantes 3D
+- ❄️ FREEZE : voile bleu + flocons + cristaux sur les bords
+- 🧲 MAGNET : 5 vagues violettes concentriques
+
+Architecture : logique IMMÉDIATE (pas de setTimeout 2.3s comme v1.12 qui
+causait race conditions) + VFX décoratif joue son animation en parallèle.
+Bonus : sons spécifiques par booster ajoutés dans audio.js (boosterFreeze /
+boosterLaser / boosterMeteor / boosterMagnet).
+**À VALIDER PAR PINO** sur APK v1.13.
+
+---
 **Symptôme** : Quand on active un booster, on voit l'effet logique (lignes effacées, etc.)
 mais PAS les VFX visuels comme dans Tetroid (laser beams qui balayent, météorites qui tombent,
 flocons de neige pour freeze, vagues violettes pour magnet).
@@ -254,6 +317,11 @@ magnetWaves) qui sont définis dans `tetroid-pro/js/boosters.js` lignes 121-442.
 - [ ] Étape 5 : Mesure de succès = activer chaque booster → voir VFX identique à Tetroid
 
 ### 🐛 BUG-BYER-1 : Mode sombre incomplet + textes/icônes inversés
+🚧 **À TRAITER DANS REPO BYER** (`Universal-Tech/apps/byer/CAHIER-CHARGES.md`).
+Cf. workflow imposé par Pino : "1 app à la fois, fix tout en bloc, tester,
+puis app suivante". → PHASE B après validation Pino de la PHASE A (ST v1.13).
+
+---
 **Symptômes** :
 - Mode sombre ne va pas jusqu'au fond (zone du bas reste claire)
 - Textes blancs sur boutons rouges deviennent NOIRS (illisibles)
