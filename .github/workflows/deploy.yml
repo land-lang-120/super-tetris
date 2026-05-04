@@ -1,0 +1,69 @@
+# ═══════════════════════════════════════════════════════════════════
+# Super Tetris — Déploiement automatique Cloudflare Workers
+# ═══════════════════════════════════════════════════════════════════
+# Trigger : push sur main OU sur n'importe quelle branche claude/*
+# Étapes  :
+#   1) checkout code
+#   2) install Node + dépendances Babel
+#   3) build bundle.js
+#   4) wrangler deploy → super-tetris.landonjouajosephpino.workers.dev
+#
+# Prérequis (à faire UNE SEULE FOIS) :
+#   GitHub repo Settings → Secrets and variables → Actions → New secret
+#     Name  : CLOUDFLARE_API_TOKEN
+#     Value : (le token Cloudflare, voir notes locales — ne jamais le
+#              commiter en clair, GitHub secret-scanning rejette le push)
+#
+# Le token actuel expire le 2026-06-03 → penser à le renouveler avant.
+# ═══════════════════════════════════════════════════════════════════
+
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+  workflow_dispatch:  # permet aussi un déclenchement manuel via l'UI GitHub
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build bundle.js
+        run: node build.js
+
+      - name: Verify bundle exists
+        run: |
+          if [ ! -f bundle.js ]; then
+            echo "::error::bundle.js missing after build"
+            exit 1
+          fi
+          echo "Bundle size: $(du -h bundle.js | cut -f1)"
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy
+
+      - name: Summary
+        run: |
+          echo "### Deployment summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- URL: https://super-tetris.landonjouajosephpino.workers.dev" >> $GITHUB_STEP_SUMMARY
