@@ -50,57 +50,12 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     };
   }, []);
 
-  // ─── v1.12 BUG-ST-1 : CANVAS PIXEL-PERFECT IMMÉDIAT (pas de flou au démarrage)
-  // Le bug v1.11 : useEffect = async, donc le canvas reste à 1×1 pour le 1er render
-  // → backing store minuscule → upscale énorme → pièces FLOUES les premières secondes.
-  //
-  // Fix v1.12 : utilise React.useLayoutEffect (SYNCHRONE, fire avant peinture browser).
-  // Combiné avec un sizing initial via cv.parentElement.getBoundingClientRect() qui
-  // donne la taille AVANT la 1ère frame de paint. Plus aucun flou au démarrage.
-  React.useLayoutEffect(() => {
-    const cv = canvasRef.current;
-    if (!cv) return;
-    const dpr = window.devicePixelRatio || 1;
-
-    function syncSize() {
-      // On lit la taille du PARENT (canvasWrap qui a flex:1) car le canvas
-      // lui-même peut être à 1×1 au tout 1er paint. Le parent est correct
-      // dès le 1er layout React.
-      const parent = cv.parentElement;
-      if (!parent) return;
-      const rect = parent.getBoundingClientRect();
-      // Le canvas suit aspect-ratio 1/2 et height=100% → on calcule sa taille
-      // réelle d'affichage à partir du parent (max-width contraint).
-      const parentH = rect.height;
-      const parentW = rect.width;
-      // Aspect 1:2 → on prend min(parentH, parentW × 2) pour la hauteur
-      const dispH = Math.min(parentH, parentW * 2);
-      const dispW = dispH / 2;
-      const w = Math.max(1, Math.round(dispW * dpr));
-      const h = Math.max(1, Math.round(dispH * dpr));
-      if (cv.width !== w || cv.height !== h) {
-        cv.width  = w;
-        cv.height = h;
-        setTick(t => t + 1);
-      }
-    }
-
-    // Sync IMMÉDIAT (synchrone, avant 1er paint browser grâce à useLayoutEffect)
-    syncSize();
-
-    // ResizeObserver pour les resize ultérieurs (rotation, redim window)
-    let ro = null;
-    if (typeof ResizeObserver === "function") {
-      ro = new ResizeObserver(syncSize);
-      ro.observe(cv.parentElement || cv);
-    } else {
-      window.addEventListener("resize", syncSize);
-    }
-    return function cleanup() {
-      if (ro) ro.disconnect();
-      else window.removeEventListener("resize", syncSize);
-    };
-  }, []);
+  // ─── v1.13 BUG-ST-1 FIX : canvas backing-store FIXE 400×800 (10×20 cellules de 40px)
+  // La v1.12 tentait un sizing dynamique DPR-aware via useLayoutEffect — mais le
+  // 1er paint mesurait parfois un parent à 0px → backing-store ridicule = flou.
+  // La v1.11 avait `width={400} height={800}` en dur sur la balise <canvas>, qui
+  // marchait nettement. On y revient. La CSS (aspectRatio:1/2 + height:100%) fait
+  // l'upscale visuel proprement, le navigateur lisse à l'affichage.
 
   // ─── v1.8 : MUSIQUE iconique de fond (Korobeiniki)
   // Démarre au mount, stop au unmount.
@@ -166,11 +121,7 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     if (!cv) return;
 
     let startX = 0, startY = 0, startT = 0, lastDy = 0, accDx = 0, accDy = 0;
-    let lastTapTime = 0;
-    let lastRotateTime = 0;            // v1.12 BUG-ST-2 : cooldown anti-hold
     const SENSITIVITY = 24;            // px par cellule de mouvement
-    const DOUBLE_TAP_MS = 180;         // v1.12 BUG-ST-2 : 300→180ms (était trop sensible)
-    const ROTATE_HOLD_GUARD_MS = 280;  // v1.12 BUG-ST-2 : pas de hold dans X ms après rotate
 
     const onStart = (e) => {
       const t = e.touches ? e.touches[0] : e;
@@ -214,25 +165,14 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         setTick(s => s + 1);
         return;
       }
-      // Tap court → rotate (v1.12 : double-tap hold protégé contre faux positifs)
+      // v1.13 BUG-ST-2 FIX : tap court = rotate UNIQUEMENT (plus de double-tap=hold).
+      // Le double-tap était la cause des "pièces qui disparaissent" : 2 taps rapides
+      // pour rotater étaient interprétés comme HOLD → la pièce courante était
+      // remplacée par celle en hold (ou null la 1ère fois). Pattern alterné exact
+      // observé par Pino.
+      // → Hold reste accessible : clavier C/Shift, mini-canvas HOLD du HUD.
       if (total < 16 && dur < 250) {
-        const now = Date.now();
-        const sinceLastRotate = now - lastRotateTime;
-        // Double-tap = HOLD, mais SEULEMENT si :
-        //   1) Le précédent tap était récent (< DOUBLE_TAP_MS = 180ms)
-        //   2) Aucune rotation < ROTATE_HOLD_GUARD_MS (280ms)
-        //   → empêche le hold accidentel quand l'utilisateur tape vite pour rotater
-        if (now - lastTapTime < DOUBLE_TAP_MS && sinceLastRotate > ROTATE_HOLD_GUARD_MS) {
-          holdPiece(G);
-          fxHold();
-          lastTapTime = 0;
-        } else {
-          if (rotatePiece(G, 1)) {
-            fxRotate();
-            lastRotateTime = now;
-          }
-          lastTapTime = now;
-        }
+        if (rotatePiece(G, 1)) fxRotate();
         setTick(s => s + 1);
       }
     };
@@ -475,7 +415,11 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     }
   }
 
-  /** Active un booster acheté (clic sur un BoosterButton). */
+  /** v1.13 BUG-ST-3 FIX : logique IMMÉDIATE + VFX en parallèle (parité Tetroid).
+      La v1.12 retardait `applyLaser/Meteor` derrière setTimeout(2.3s) — pendant
+      ce délai, le game loop continuait → race conditions, état incohérent.
+      Désormais : applyXxx() agit immédiatement, le VFX joue son animation
+      indépendamment (purement décoratif). */
   function activateBooster(id) {
     const G = gameRef.current;
     if (!G || G.gameOver || paused || !window.STBoosters) return;
@@ -483,16 +427,16 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
 
     if (id === "freeze") {
-      // ❄️ FREEZE : applique le timer + spawn VFX flakes/crystals/voile
+      // ❄️ FREEZE : applique le timer + VFX flocons/cristaux/voile
       window.STBoosters.applyFreeze(G);
       if (cv && window.STBoosterFX) {
         window.STBoosterFX.spawnFreezeEffects(cv.width, cv.height);
       }
+      if (window.STAudio) window.STAudio.play("boosterFreeze");
+
     } else if (id === "laser") {
-      // ⚡ LASER : VFX beams qui balaient AVANT que les lignes s'effacent
-      // (delay 80ms × N + 520ms par beam). Pour synchroniser : on spawn
-      // les beams VFX d'abord, puis applique l'effet logique avec un timeout
-      // équivalent à la durée totale du sweep.
+      // ⚡ LASER : effet logique IMMÉDIAT (lignes effacées) + VFX beams qui balaient
+      // en parallèle (purement décoratif). Particules rouges sur les lignes touchées.
       const targets = [];
       for (let r = window.STCore.ROWS - 1; r >= 0 && targets.length < 4; r--) {
         let hasCell = false;
@@ -501,49 +445,43 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         }
         if (hasCell) targets.push(r);
       }
+      // 1) VFX en parallèle (lance le sweep des beams)
       if (cv && window.STBoosterFX && targets.length > 0) {
         window.STBoosterFX.spawnLaser(targets, cellSize, cv.width);
       }
-      // Effet logique appliqué après le sweep VFX (effet visuel d'abord)
-      const sweepTotalMs = (targets.length - 1) * 80 + 320;
-      setTimeout(function () {
-        const result = window.STBoosters.applyLaser(G);
-        if (cv && window.STParticles && result.lines.length > 0) {
-          result.lines.forEach(function (rowIdx) {
-            const cy = rowIdx * cellSize + cellSize / 2;
-            for (let x = 0; x < window.STCore.COLS; x++) {
-              window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
-            }
-          });
-        }
-        setTick(t => t + 1);
-      }, sweepTotalMs);
+      // 2) Logique immédiate (efface les lignes)
+      const result = window.STBoosters.applyLaser(G);
+      // 3) Particules rouges sur chaque ligne effacée
+      if (cv && window.STParticles && result.lines.length > 0) {
+        result.lines.forEach(function (rowIdx) {
+          const cy = rowIdx * cellSize + cellSize / 2;
+          for (let x = 0; x < window.STCore.COLS; x++) {
+            window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
+          }
+        });
+      }
+      if (window.STAudio) window.STAudio.play("boosterLaser");
+
     } else if (id === "meteor") {
-      // ☄️ METEOR : 10 météores VFX qui tombent du haut, delay 80ms entre.
-      // L'effet logique est appliqué APRÈS la fin de tous les météores.
+      // ☄️ METEOR : effet logique IMMÉDIAT + VFX météores en parallèle
       if (cv && window.STBoosterFX) {
         window.STBoosterFX.spawnMeteor(window.STCore.COLS, cellSize);
       }
-      // Calcule quand tous les météores auront atteint le bas
-      // (10 météores × 80ms delay + ~1500ms chute moyenne)
-      const meteorTotalMs = window.STCore.COLS * 80 + 1500;
-      setTimeout(function () {
-        const result = window.STBoosters.applyMeteor(G);
-        if (cv && window.STParticles) {
-          result.columns.forEach(function (col) {
-            if (col.hits > 0) {
-              const px = col.col * cellSize + cellSize / 2;
-              const py = col.topRow * cellSize + cellSize / 2;
-              window.STParticles.addShockwave(px, py);
-              window.STParticles.addExplosion(px, py, "#ff9000");
-            }
-          });
-        }
-        if (window.STBoosterFX) window.STBoosterFX.killAllMeteors();
-        setTick(t => t + 1);
-      }, meteorTotalMs);
+      const result = window.STBoosters.applyMeteor(G);
+      if (cv && window.STParticles) {
+        result.columns.forEach(function (col) {
+          if (col.hits > 0) {
+            const px = col.col * cellSize + cellSize / 2;
+            const py = col.topRow * cellSize + cellSize / 2;
+            window.STParticles.addShockwave(px, py);
+            window.STParticles.addExplosion(px, py, "#ff9000");
+          }
+        });
+      }
+      if (window.STAudio) window.STAudio.play("boosterMeteor");
+
     } else if (id === "magnet") {
-      // 🧲 MAGNET : 5 vagues violettes VFX + effet logique immédiat
+      // 🧲 MAGNET : 5 vagues violettes VFX + gravity multi-pass + clear lignes
       if (cv && window.STBoosterFX) {
         window.STBoosterFX.spawnMagnetWaves(cv.width, cv.height);
       }
@@ -557,14 +495,13 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
           );
         }
       }
-      // Bonus combo si magnet a déclenché des line clears
       if (r.linesCleared > 0) {
         G.linesTotal = (G.linesTotal || 0) + r.linesCleared;
       }
+      if (window.STAudio) window.STAudio.play("boosterMagnet");
     }
 
-    // FX communs à tous les boosters
-    if (window.STAudio)   window.STAudio.play("booster");
+    // Haptic commun à tous les boosters
     if (window.STHaptics) window.STHaptics.vibePattern("booster");
     setTick(t => t + 1);
   }
@@ -615,13 +552,13 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
           >🏠</button>
         </div>
 
-        {/* Canvas pixel-perfect : width/height attributes settés dynamiquement
-            par le ResizeObserver dans useEffect (cv.width = displayWidth × DPR).
-            On démarre avec 1×1 pour éviter le flash de display 0×0 vide. */}
+        {/* Canvas backing-store FIXE 400×800 (10 cols × 20 rows × 40px par cellule).
+            CSS upscale via aspectRatio + height:100%. Pas de DPR dynamique — net
+            sur tous écrans (le 1ère frame est déjà bien dimensionnée). */}
         <canvas
           ref={canvasRef}
-          width={1}
-          height={1}
+          width={400}
+          height={800}
           style={SGS.canvas}
         />
 

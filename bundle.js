@@ -770,7 +770,8 @@
   }
 
   /**
-   * Dessine une cellule "3D" : couleur de base + highlight + shadow.
+   * v1.13 : cellule 3D bombée style "bouton brillant" (parité btn-3d UI).
+   * Couches superposées : base + gradient diagonal + reflets + bordures.
    */
   function drawCell(ctx, x, y, size, color, flash) {
     if (flash) {
@@ -779,22 +780,49 @@
       ctx.fillRect(x, y, size, size);
       return;
     }
-    // Body
+
+    // 1) Base solide
     ctx.fillStyle = color;
     ctx.fillRect(x, y, size, size);
 
-    // Highlight top-left (effet 3D)
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.fillRect(x, y, size, Math.max(2, size * 0.18));
-    ctx.fillRect(x, y, Math.max(2, size * 0.18), size);
+    // 2) Gradient diagonal "bombé" : reflet haut-gauche → ombre bas-droite
+    var grd = ctx.createLinearGradient(x, y, x + size, y + size);
+    grd.addColorStop(0, "rgba(255,255,255,0.50)");
+    grd.addColorStop(0.45, "rgba(255,255,255,0.00)");
+    grd.addColorStop(1, "rgba(0,0,0,0.40)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(x, y, size, size);
 
-    // Shadow bottom-right
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(x, y + size - Math.max(2, size * 0.18), size, Math.max(2, size * 0.18));
-    ctx.fillRect(x + size - Math.max(2, size * 0.18), y, Math.max(2, size * 0.18), size);
+    // 3) Bandeau reflet supérieur (effet "verre vitré")
+    var topGlow = ctx.createLinearGradient(x, y, x, y + size * 0.45);
+    topGlow.addColorStop(0, "rgba(255,255,255,0.55)");
+    topGlow.addColorStop(0.6, "rgba(255,255,255,0.10)");
+    topGlow.addColorStop(1, "rgba(255,255,255,0.00)");
+    ctx.fillStyle = topGlow;
+    ctx.fillRect(x + size * 0.10, y + size * 0.06, size * 0.80, size * 0.40);
 
-    // Borne externe (séparation entre cellules)
-    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    // 4) Inner shadow bas (donne du relief, pose la "lumière du dessus")
+    var bot = ctx.createLinearGradient(x, y + size * 0.6, x, y + size);
+    bot.addColorStop(0, "rgba(0,0,0,0.00)");
+    bot.addColorStop(1, "rgba(0,0,0,0.35)");
+    ctx.fillStyle = bot;
+    ctx.fillRect(x, y + size * 0.6, size, size * 0.4);
+
+    // 5) Reflet ponctuel rond en haut-gauche (style "highlight de bille")
+    var spot = ctx.createRadialGradient(x + size * 0.30, y + size * 0.28, 0, x + size * 0.30, y + size * 0.28, size * 0.45);
+    spot.addColorStop(0, "rgba(255,255,255,0.55)");
+    spot.addColorStop(0.5, "rgba(255,255,255,0.12)");
+    spot.addColorStop(1, "rgba(255,255,255,0.00)");
+    ctx.fillStyle = spot;
+    ctx.fillRect(x, y, size, size);
+
+    // 6) Bordure interne brillante (cerclage clair façon "bombée")
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 1.5, y + 1.5, size - 3, size - 3);
+
+    // 7) Bordure externe sombre (séparation entre cellules)
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
     ctx.lineWidth = 1;
     ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
   }
@@ -1081,6 +1109,118 @@
     },
     booster: function () {
       tone(800, 0.15, "triangle", 0.12);
+    },
+    // ─── v1.13 : sons spécifiques par booster (parité Tetroid)
+    // ❄️ FREEZE : descente glaciale, deux notes hautes qui chutent + souffle
+    boosterFreeze: function () {
+      sequence([{
+        freq: 1568,
+        dur: 0.12,
+        type: "sine",
+        vol: 0.14
+      }, {
+        freq: 1175,
+        dur: 0.14,
+        type: "sine",
+        vol: 0.12
+      }, {
+        freq: 880,
+        dur: 0.18,
+        type: "sine",
+        vol: 0.10
+      }, {
+        freq: 587,
+        dur: 0.30,
+        type: "triangle",
+        vol: 0.08
+      }]);
+    },
+    // ⚡ LASER : zap strident montant + flash sawtooth
+    boosterLaser: function () {
+      sequence([{
+        freq: 220,
+        dur: 0.04,
+        type: "sawtooth",
+        vol: 0.16,
+        gap: 30
+      }, {
+        freq: 880,
+        dur: 0.05,
+        type: "sawtooth",
+        vol: 0.18,
+        gap: 30
+      }, {
+        freq: 2200,
+        dur: 0.10,
+        type: "square",
+        vol: 0.16,
+        gap: 40
+      }, {
+        freq: 1760,
+        dur: 0.16,
+        type: "triangle",
+        vol: 0.10
+      }]);
+    },
+    // ☄️ METEOR : impact lourd, sub-bass + crash
+    boosterMeteor: function () {
+      sequence([{
+        freq: 90,
+        dur: 0.15,
+        type: "sawtooth",
+        vol: 0.18,
+        gap: 60
+      }, {
+        freq: 60,
+        dur: 0.20,
+        type: "sawtooth",
+        vol: 0.20,
+        gap: 80
+      }, {
+        freq: 140,
+        dur: 0.10,
+        type: "square",
+        vol: 0.14,
+        gap: 50
+      }, {
+        freq: 80,
+        dur: 0.30,
+        type: "triangle",
+        vol: 0.12
+      }]);
+    },
+    // 🧲 MAGNET : sweep montant violacé + résonance
+    boosterMagnet: function () {
+      sequence([{
+        freq: 330,
+        dur: 0.08,
+        type: "triangle",
+        vol: 0.12,
+        gap: 50
+      }, {
+        freq: 494,
+        dur: 0.08,
+        type: "triangle",
+        vol: 0.13,
+        gap: 50
+      }, {
+        freq: 659,
+        dur: 0.08,
+        type: "triangle",
+        vol: 0.14,
+        gap: 50
+      }, {
+        freq: 880,
+        dur: 0.10,
+        type: "sine",
+        vol: 0.13,
+        gap: 50
+      }, {
+        freq: 1108,
+        dur: 0.20,
+        type: "sine",
+        vol: 0.10
+      }]);
     },
     gameOver: function () {
       sequence([{
@@ -4119,55 +4259,12 @@ function GameScreen({
     };
   }, []);
 
-  // ─── v1.12 BUG-ST-1 : CANVAS PIXEL-PERFECT IMMÉDIAT (pas de flou au démarrage)
-  // Le bug v1.11 : useEffect = async, donc le canvas reste à 1×1 pour le 1er render
-  // → backing store minuscule → upscale énorme → pièces FLOUES les premières secondes.
-  //
-  // Fix v1.12 : utilise React.useLayoutEffect (SYNCHRONE, fire avant peinture browser).
-  // Combiné avec un sizing initial via cv.parentElement.getBoundingClientRect() qui
-  // donne la taille AVANT la 1ère frame de paint. Plus aucun flou au démarrage.
-  React.useLayoutEffect(() => {
-    const cv = canvasRef.current;
-    if (!cv) return;
-    const dpr = window.devicePixelRatio || 1;
-    function syncSize() {
-      // On lit la taille du PARENT (canvasWrap qui a flex:1) car le canvas
-      // lui-même peut être à 1×1 au tout 1er paint. Le parent est correct
-      // dès le 1er layout React.
-      const parent = cv.parentElement;
-      if (!parent) return;
-      const rect = parent.getBoundingClientRect();
-      // Le canvas suit aspect-ratio 1/2 et height=100% → on calcule sa taille
-      // réelle d'affichage à partir du parent (max-width contraint).
-      const parentH = rect.height;
-      const parentW = rect.width;
-      // Aspect 1:2 → on prend min(parentH, parentW × 2) pour la hauteur
-      const dispH = Math.min(parentH, parentW * 2);
-      const dispW = dispH / 2;
-      const w = Math.max(1, Math.round(dispW * dpr));
-      const h = Math.max(1, Math.round(dispH * dpr));
-      if (cv.width !== w || cv.height !== h) {
-        cv.width = w;
-        cv.height = h;
-        setTick(t => t + 1);
-      }
-    }
-
-    // Sync IMMÉDIAT (synchrone, avant 1er paint browser grâce à useLayoutEffect)
-    syncSize();
-
-    // ResizeObserver pour les resize ultérieurs (rotation, redim window)
-    let ro = null;
-    if (typeof ResizeObserver === "function") {
-      ro = new ResizeObserver(syncSize);
-      ro.observe(cv.parentElement || cv);
-    } else {
-      window.addEventListener("resize", syncSize);
-    }
-    return function cleanup() {
-      if (ro) ro.disconnect();else window.removeEventListener("resize", syncSize);
-    };
-  }, []);
+  // ─── v1.13 BUG-ST-1 FIX : canvas backing-store FIXE 400×800 (10×20 cellules de 40px)
+  // La v1.12 tentait un sizing dynamique DPR-aware via useLayoutEffect — mais le
+  // 1er paint mesurait parfois un parent à 0px → backing-store ridicule = flou.
+  // La v1.11 avait `width={400} height={800}` en dur sur la balise <canvas>, qui
+  // marchait nettement. On y revient. La CSS (aspectRatio:1/2 + height:100%) fait
+  // l'upscale visuel proprement, le navigateur lisse à l'affichage.
 
   // ─── v1.8 : MUSIQUE iconique de fond (Korobeiniki)
   // Démarre au mount, stop au unmount.
@@ -4257,11 +4354,7 @@ function GameScreen({
       lastDy = 0,
       accDx = 0,
       accDy = 0;
-    let lastTapTime = 0;
-    let lastRotateTime = 0; // v1.12 BUG-ST-2 : cooldown anti-hold
     const SENSITIVITY = 24; // px par cellule de mouvement
-    const DOUBLE_TAP_MS = 180; // v1.12 BUG-ST-2 : 300→180ms (était trop sensible)
-    const ROTATE_HOLD_GUARD_MS = 280; // v1.12 BUG-ST-2 : pas de hold dans X ms après rotate
 
     const onStart = e => {
       const t = e.touches ? e.touches[0] : e;
@@ -4317,25 +4410,14 @@ function GameScreen({
         setTick(s => s + 1);
         return;
       }
-      // Tap court → rotate (v1.12 : double-tap hold protégé contre faux positifs)
+      // v1.13 BUG-ST-2 FIX : tap court = rotate UNIQUEMENT (plus de double-tap=hold).
+      // Le double-tap était la cause des "pièces qui disparaissent" : 2 taps rapides
+      // pour rotater étaient interprétés comme HOLD → la pièce courante était
+      // remplacée par celle en hold (ou null la 1ère fois). Pattern alterné exact
+      // observé par Pino.
+      // → Hold reste accessible : clavier C/Shift, mini-canvas HOLD du HUD.
       if (total < 16 && dur < 250) {
-        const now = Date.now();
-        const sinceLastRotate = now - lastRotateTime;
-        // Double-tap = HOLD, mais SEULEMENT si :
-        //   1) Le précédent tap était récent (< DOUBLE_TAP_MS = 180ms)
-        //   2) Aucune rotation < ROTATE_HOLD_GUARD_MS (280ms)
-        //   → empêche le hold accidentel quand l'utilisateur tape vite pour rotater
-        if (now - lastTapTime < DOUBLE_TAP_MS && sinceLastRotate > ROTATE_HOLD_GUARD_MS) {
-          holdPiece(G);
-          fxHold();
-          lastTapTime = 0;
-        } else {
-          if (rotatePiece(G, 1)) {
-            fxRotate();
-            lastRotateTime = now;
-          }
-          lastTapTime = now;
-        }
+        if (rotatePiece(G, 1)) fxRotate();
         setTick(s => s + 1);
       }
     };
@@ -4591,23 +4673,26 @@ function GameScreen({
     }
   }
 
-  /** Active un booster acheté (clic sur un BoosterButton). */
+  /** v1.13 BUG-ST-3 FIX : logique IMMÉDIATE + VFX en parallèle (parité Tetroid).
+      La v1.12 retardait `applyLaser/Meteor` derrière setTimeout(2.3s) — pendant
+      ce délai, le game loop continuait → race conditions, état incohérent.
+      Désormais : applyXxx() agit immédiatement, le VFX joue son animation
+      indépendamment (purement décoratif). */
   function activateBooster(id) {
     const G = gameRef.current;
     if (!G || G.gameOver || paused || !window.STBoosters) return;
     const cv = canvasRef.current;
     const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
     if (id === "freeze") {
-      // ❄️ FREEZE : applique le timer + spawn VFX flakes/crystals/voile
+      // ❄️ FREEZE : applique le timer + VFX flocons/cristaux/voile
       window.STBoosters.applyFreeze(G);
       if (cv && window.STBoosterFX) {
         window.STBoosterFX.spawnFreezeEffects(cv.width, cv.height);
       }
+      if (window.STAudio) window.STAudio.play("boosterFreeze");
     } else if (id === "laser") {
-      // ⚡ LASER : VFX beams qui balaient AVANT que les lignes s'effacent
-      // (delay 80ms × N + 520ms par beam). Pour synchroniser : on spawn
-      // les beams VFX d'abord, puis applique l'effet logique avec un timeout
-      // équivalent à la durée totale du sweep.
+      // ⚡ LASER : effet logique IMMÉDIAT (lignes effacées) + VFX beams qui balaient
+      // en parallèle (purement décoratif). Particules rouges sur les lignes touchées.
       const targets = [];
       for (let r = window.STCore.ROWS - 1; r >= 0 && targets.length < 4; r--) {
         let hasCell = false;
@@ -4619,49 +4704,41 @@ function GameScreen({
         }
         if (hasCell) targets.push(r);
       }
+      // 1) VFX en parallèle (lance le sweep des beams)
       if (cv && window.STBoosterFX && targets.length > 0) {
         window.STBoosterFX.spawnLaser(targets, cellSize, cv.width);
       }
-      // Effet logique appliqué après le sweep VFX (effet visuel d'abord)
-      const sweepTotalMs = (targets.length - 1) * 80 + 320;
-      setTimeout(function () {
-        const result = window.STBoosters.applyLaser(G);
-        if (cv && window.STParticles && result.lines.length > 0) {
-          result.lines.forEach(function (rowIdx) {
-            const cy = rowIdx * cellSize + cellSize / 2;
-            for (let x = 0; x < window.STCore.COLS; x++) {
-              window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
-            }
-          });
-        }
-        setTick(t => t + 1);
-      }, sweepTotalMs);
+      // 2) Logique immédiate (efface les lignes)
+      const result = window.STBoosters.applyLaser(G);
+      // 3) Particules rouges sur chaque ligne effacée
+      if (cv && window.STParticles && result.lines.length > 0) {
+        result.lines.forEach(function (rowIdx) {
+          const cy = rowIdx * cellSize + cellSize / 2;
+          for (let x = 0; x < window.STCore.COLS; x++) {
+            window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
+          }
+        });
+      }
+      if (window.STAudio) window.STAudio.play("boosterLaser");
     } else if (id === "meteor") {
-      // ☄️ METEOR : 10 météores VFX qui tombent du haut, delay 80ms entre.
-      // L'effet logique est appliqué APRÈS la fin de tous les météores.
+      // ☄️ METEOR : effet logique IMMÉDIAT + VFX météores en parallèle
       if (cv && window.STBoosterFX) {
         window.STBoosterFX.spawnMeteor(window.STCore.COLS, cellSize);
       }
-      // Calcule quand tous les météores auront atteint le bas
-      // (10 météores × 80ms delay + ~1500ms chute moyenne)
-      const meteorTotalMs = window.STCore.COLS * 80 + 1500;
-      setTimeout(function () {
-        const result = window.STBoosters.applyMeteor(G);
-        if (cv && window.STParticles) {
-          result.columns.forEach(function (col) {
-            if (col.hits > 0) {
-              const px = col.col * cellSize + cellSize / 2;
-              const py = col.topRow * cellSize + cellSize / 2;
-              window.STParticles.addShockwave(px, py);
-              window.STParticles.addExplosion(px, py, "#ff9000");
-            }
-          });
-        }
-        if (window.STBoosterFX) window.STBoosterFX.killAllMeteors();
-        setTick(t => t + 1);
-      }, meteorTotalMs);
+      const result = window.STBoosters.applyMeteor(G);
+      if (cv && window.STParticles) {
+        result.columns.forEach(function (col) {
+          if (col.hits > 0) {
+            const px = col.col * cellSize + cellSize / 2;
+            const py = col.topRow * cellSize + cellSize / 2;
+            window.STParticles.addShockwave(px, py);
+            window.STParticles.addExplosion(px, py, "#ff9000");
+          }
+        });
+      }
+      if (window.STAudio) window.STAudio.play("boosterMeteor");
     } else if (id === "magnet") {
-      // 🧲 MAGNET : 5 vagues violettes VFX + effet logique immédiat
+      // 🧲 MAGNET : 5 vagues violettes VFX + gravity multi-pass + clear lignes
       if (cv && window.STBoosterFX) {
         window.STBoosterFX.spawnMagnetWaves(cv.width, cv.height);
       }
@@ -4671,14 +4748,13 @@ function GameScreen({
           window.STParticles.addExplosion(x * cellSize + cellSize / 2, cv.height - cellSize, "#b020ff");
         }
       }
-      // Bonus combo si magnet a déclenché des line clears
       if (r.linesCleared > 0) {
         G.linesTotal = (G.linesTotal || 0) + r.linesCleared;
       }
+      if (window.STAudio) window.STAudio.play("boosterMagnet");
     }
 
-    // FX communs à tous les boosters
-    if (window.STAudio) window.STAudio.play("booster");
+    // Haptic commun à tous les boosters
     if (window.STHaptics) window.STHaptics.vibePattern("booster");
     setTick(t => t + 1);
   }
@@ -4718,8 +4794,8 @@ function GameScreen({
     "aria-label": "Accueil"
   }, "\uD83C\uDFE0")), /*#__PURE__*/React.createElement("canvas", {
     ref: canvasRef,
-    width: 1,
-    height: 1,
+    width: 400,
+    height: 800,
     style: SGS.canvas
   }), combo >= 2 && /*#__PURE__*/React.createElement("div", {
     style: SGS.comboBanner,
