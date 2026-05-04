@@ -59,6 +59,9 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # wrangler@4 requis pour supporter le mode static-assets sans `main`
+          # field (notre wrangler.jsonc utilise [assets] seulement)
+          wranglerVersion: "4"
           command: deploy
 
       - name: Summary
