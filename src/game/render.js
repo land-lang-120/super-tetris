@@ -108,7 +108,8 @@
   }
 
   /**
-   * Dessine une cellule "3D" : couleur de base + highlight + shadow.
+   * v1.13 : cellule 3D bombée style "bouton brillant" (parité btn-3d UI).
+   * Couches superposées : base + gradient diagonal + reflets + bordures.
    */
   function drawCell(ctx, x, y, size, color, flash) {
     if (flash) {
@@ -117,22 +118,52 @@
       ctx.fillRect(x, y, size, size);
       return;
     }
-    // Body
+
+    // 1) Base solide
     ctx.fillStyle = color;
     ctx.fillRect(x, y, size, size);
 
-    // Highlight top-left (effet 3D)
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.fillRect(x, y, size, Math.max(2, size * 0.18));
-    ctx.fillRect(x, y, Math.max(2, size * 0.18), size);
+    // 2) Gradient diagonal "bombé" : reflet haut-gauche → ombre bas-droite
+    var grd = ctx.createLinearGradient(x, y, x + size, y + size);
+    grd.addColorStop(0,    "rgba(255,255,255,0.50)");
+    grd.addColorStop(0.45, "rgba(255,255,255,0.00)");
+    grd.addColorStop(1,    "rgba(0,0,0,0.40)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(x, y, size, size);
 
-    // Shadow bottom-right
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(x, y + size - Math.max(2, size * 0.18), size, Math.max(2, size * 0.18));
-    ctx.fillRect(x + size - Math.max(2, size * 0.18), y, Math.max(2, size * 0.18), size);
+    // 3) Bandeau reflet supérieur (effet "verre vitré")
+    var topGlow = ctx.createLinearGradient(x, y, x, y + size * 0.45);
+    topGlow.addColorStop(0,   "rgba(255,255,255,0.55)");
+    topGlow.addColorStop(0.6, "rgba(255,255,255,0.10)");
+    topGlow.addColorStop(1,   "rgba(255,255,255,0.00)");
+    ctx.fillStyle = topGlow;
+    ctx.fillRect(x + size * 0.10, y + size * 0.06, size * 0.80, size * 0.40);
 
-    // Borne externe (séparation entre cellules)
-    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    // 4) Inner shadow bas (donne du relief, pose la "lumière du dessus")
+    var bot = ctx.createLinearGradient(x, y + size * 0.6, x, y + size);
+    bot.addColorStop(0, "rgba(0,0,0,0.00)");
+    bot.addColorStop(1, "rgba(0,0,0,0.35)");
+    ctx.fillStyle = bot;
+    ctx.fillRect(x, y + size * 0.6, size, size * 0.4);
+
+    // 5) Reflet ponctuel rond en haut-gauche (style "highlight de bille")
+    var spot = ctx.createRadialGradient(
+      x + size * 0.30, y + size * 0.28, 0,
+      x + size * 0.30, y + size * 0.28, size * 0.45
+    );
+    spot.addColorStop(0,   "rgba(255,255,255,0.55)");
+    spot.addColorStop(0.5, "rgba(255,255,255,0.12)");
+    spot.addColorStop(1,   "rgba(255,255,255,0.00)");
+    ctx.fillStyle = spot;
+    ctx.fillRect(x, y, size, size);
+
+    // 6) Bordure interne brillante (cerclage clair façon "bombée")
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 1.5, y + 1.5, size - 3, size - 3);
+
+    // 7) Bordure externe sombre (séparation entre cellules)
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
     ctx.lineWidth = 1;
     ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
   }

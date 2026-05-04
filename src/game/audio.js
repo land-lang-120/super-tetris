@@ -134,6 +134,38 @@
     ]); },
 
     booster:  function () { tone(800, 0.15, "triangle", 0.12); },
+
+    // ─── v1.13 : sons spécifiques par booster (parité Tetroid)
+    // ❄️ FREEZE : descente glaciale, deux notes hautes qui chutent + souffle
+    boosterFreeze: function () { sequence([
+      {freq:1568,dur:0.12,type:"sine",vol:0.14},
+      {freq:1175,dur:0.14,type:"sine",vol:0.12},
+      {freq: 880,dur:0.18,type:"sine",vol:0.10},
+      {freq: 587,dur:0.30,type:"triangle",vol:0.08},
+    ]); },
+    // ⚡ LASER : zap strident montant + flash sawtooth
+    boosterLaser: function () { sequence([
+      {freq: 220,dur:0.04,type:"sawtooth",vol:0.16,gap:30},
+      {freq: 880,dur:0.05,type:"sawtooth",vol:0.18,gap:30},
+      {freq:2200,dur:0.10,type:"square",  vol:0.16,gap:40},
+      {freq:1760,dur:0.16,type:"triangle",vol:0.10},
+    ]); },
+    // ☄️ METEOR : impact lourd, sub-bass + crash
+    boosterMeteor: function () { sequence([
+      {freq: 90, dur:0.15,type:"sawtooth",vol:0.18,gap:60},
+      {freq: 60, dur:0.20,type:"sawtooth",vol:0.20,gap:80},
+      {freq:140, dur:0.10,type:"square",  vol:0.14,gap:50},
+      {freq: 80, dur:0.30,type:"triangle",vol:0.12},
+    ]); },
+    // 🧲 MAGNET : sweep montant violacé + résonance
+    boosterMagnet: function () { sequence([
+      {freq: 330,dur:0.08,type:"triangle",vol:0.12,gap:50},
+      {freq: 494,dur:0.08,type:"triangle",vol:0.13,gap:50},
+      {freq: 659,dur:0.08,type:"triangle",vol:0.14,gap:50},
+      {freq: 880,dur:0.10,type:"sine",    vol:0.13,gap:50},
+      {freq:1108,dur:0.20,type:"sine",    vol:0.10},
+    ]); },
+
     gameOver: function () { sequence([
       {freq:392,dur:0.15},{freq:330,dur:0.15},{freq:262,dur:0.3,vol:0.18},
     ]); },
