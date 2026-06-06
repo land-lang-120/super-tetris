@@ -1,7 +1,7 @@
 {
   "name": "Super Tetris — Le jeu emblématique",
   "short_name": "Super Tetris",
-  "description": "Super Tetris — Le jeu de puzzle emblématique avec boosters, roue de la fortune, classement mondial et missions épiques. 4 boosters fun (Freeze, Laser, Meteor, Magnet), thème iconique Korobeiniki, gameplay Tetris officiel (SRS, hold, ghost, T-spin).",
+  "description": "Super Tetris — Le jeu de puzzle emblématique avec boosters, roue de la fortune quotidienne et musique iconique. 4 boosters fun (Freeze, Laser, Meteor, Magnet), thème Korobeiniki, gameplay SRS, hold, ghost et T-spin.",
   "id": "com.clonex.supertetris",
   "start_url": "/?source=pwa",
   "scope": "/",
