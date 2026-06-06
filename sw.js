@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════
-   Super Tetris — Service Worker v1.20.2
+   Super Tetris — Service Worker v1.21.0
    Network-first pour HTML/JS/CSS (bundle, index)
    Cache-first pour les libs et icônes (rarement modifiés)
    ═══════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'super-tetris-v1.20.2';
+const CACHE_NAME = 'super-tetris-v1.21.0';
 
 const ASSETS = [
   './',
