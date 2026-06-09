@@ -48,6 +48,7 @@ function validateProfile(p, def) {
   if (typeof p.playerName === "string") out.playerName = p.playerName.trim().slice(0, 18);
   if (typeof p.playerId === "string") out.playerId = p.playerId.trim().slice(0, 32);
   if (isPositiveInt(p.profileCreatedAt)) out.profileCreatedAt = p.profileCreatedAt;
+  if (typeof p.starterBoostersGranted === "boolean") out.starterBoostersGranted = p.starterBoostersGranted;
   if (typeof p.wheelLastFree === "number" && Number.isFinite(p.wheelLastFree)) out.wheelLastFree = p.wheelLastFree;
   if (Array.isArray(p.history)) {
     out.history = p.history.slice(0, 30).filter((g) => g && typeof g === "object").map((g) => ({

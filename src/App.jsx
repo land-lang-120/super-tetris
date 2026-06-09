@@ -33,6 +33,7 @@ const DEFAULT_PROFILE = {
   playerName: "",
   playerId: "",
   profileCreatedAt: 0,
+  starterBoostersGranted: false,
   history: [],
 };
 
@@ -55,6 +56,27 @@ function App() {
   // ensuite, onComplete devra venir uniquement du callback "reward earned".
   const [pendingShopAd, setPendingShopAd] = useStateApp(null);
   const [wheelAdSpinNonce, setWheelAdSpinNonce] = useStateApp(0);
+
+  // v1.22.10 : prime de depart appliquee une seule fois, y compris pour les
+  // profils crees avant le passage a 15 boosters partout.
+  useEffectApp(() => {
+    if (!profile || profile.starterBoostersGranted) return;
+    setProfile((prev) => {
+      const p = prev || DEFAULT_PROFILE;
+      if (p.starterBoostersGranted) return p;
+      const current = (p && p.boosters) || {};
+      return {
+        ...p,
+        starterBoostersGranted: true,
+        boosters: {
+          freeze: Math.max(15, current.freeze || 0),
+          laser: Math.max(15, current.laser || 0),
+          meteor: Math.max(15, current.meteor || 0),
+          magnet: Math.max(15, current.magnet || 0),
+        },
+      };
+    });
+  }, [profile && profile.starterBoostersGranted, setProfile]);
 
   // Applique le thème en ajoutant/retirant body.light
   useEffectApp(() => {
