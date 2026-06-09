@@ -1,7 +1,7 @@
 /* Super Tetris - StatsScreen
    Profil joueur + classements local / mondial / competitions. */
 
-const { useState: useStateStats } = React;
+const { useState: useStateStats, useEffect: useEffectStats } = React;
 
 function StatsScreen({ profile, onProfileChange, onClose }) {
   const p = profile || {};
@@ -17,6 +17,10 @@ function StatsScreen({ profile, onProfileChange, onClose }) {
   const hasProfile = !!(p.playerName && String(p.playerName).trim());
   const globalRank = hasProfile ? estimateGlobalRank(p.bestScore || 0, p.xp || 0) : null;
 
+  useEffectStats(() => {
+    setDraftName(p.playerName || "");
+  }, [p.playerName]);
+
   function saveProfile() {
     const clean = String(draftName || "").trim().slice(0, 18);
     if (!clean || typeof onProfileChange !== "function") return;
@@ -26,13 +30,16 @@ function StatsScreen({ profile, onProfileChange, onClose }) {
       playerId: (prev && prev.playerId) || playerId,
       profileCreatedAt: (prev && prev.profileCreatedAt) || Date.now(),
     }));
+    setDraftName(clean);
   }
 
   return (
     <div style={SST.root}>
       <Starfield count={16} />
       <div style={SST.header}>
-        <button onClick={onClose} style={SST.backBtn} aria-label={tr("back")}>←</button>
+        <button onClick={onClose} style={SST.backBtn} aria-label={tr("back")}>
+          <span style={SST.backIcon}>{"\u2190"}</span>
+        </button>
         <div style={SST.title}>{tr("ranking")}</div>
         <div style={{ width: 42 }} />
       </div>
@@ -214,14 +221,20 @@ const SST = {
     borderRadius: 10,
     background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
     border: "1.5px solid var(--purple)",
-    fontSize: 22,
+    fontSize: 0,
     color: "#fff",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.25)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    lineHeight: 1,
+    lineHeight: 0,
     padding: 0,
+  },
+  backIcon: {
+    display: "block",
+    fontSize: 22,
+    lineHeight: "22px",
+    transform: "translateY(-1px)",
   },
   title: {
     fontFamily: "'Lilita One', cursive",

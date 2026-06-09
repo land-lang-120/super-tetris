@@ -1,7 +1,7 @@
 # 🎮 Super Tetris — Cahier de charges
 
 > Le Tetris emblématique réinventé avec 4 boosters fun et la musique iconique
-> Version : **1.22.5** — 2026-06-08 (boutique, roue, game over, loading thématique, pubs vidéo interstitielles)
+> Version : **1.22.6** - 2026-06-09 (opacite mobile corrigee, fleches retour centrees, profil joueur persistant)
 > URL prod : https://super-tetris.landonjouajosephpino.workers.dev
 > Tech : React 18 UMD CDN + Babel build + Terser → bundle.js (95 KB minifié)
 
@@ -134,6 +134,15 @@ Dès déblocage, **Super Tetris est l'app la plus simple à pusher en premier** 
 ---
 
 ## 4. Roadmap
+
+### Patch v1.22.6 (2026-06-09) - Correctifs mobile post-test
+
+| ID | Zone | Decision / correction | Fichiers |
+|---|---|---|---|
+| UI-OPAQUE | Boutique + post-mort | Les cartes et panneaux critiques utilisent des fonds opaques afin que le decor de tetrominos reste strictement en arriere-plan | `ShopScreen.jsx`, `GameOverScreen.jsx` |
+| BACK-ALIGN | Navigation | Les fleches retour sont rendues dans un glyphe interne centre verticalement dans leur bouton | `ShopScreen.jsx`, `StatsScreen.jsx`, `SettingsScreen.jsx` |
+| PROFILE-SAVE | Classement/profil | Le validateur localStorage conserve `playerName`, `playerId` et `profileCreatedAt`; le pseudo reste disponible apres reload | `useStorage.js`, `App.jsx`, `StatsScreen.jsx` |
+| CACHE | Propagation mobile | Version `1.22.6`, cache SW `super-tetris-v1.22.6`, bundle query `?v=1.22.6` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
 
 ### ✅ Patch v1.22.5 (2026-06-08) — Consolidation UX / monétisation / loading
 

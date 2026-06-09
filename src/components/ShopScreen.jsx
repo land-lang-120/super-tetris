@@ -73,7 +73,9 @@ function ShopScreen({ profile, onBuyPack, onWatchAd, onClose }) {
     <div style={SSHO.root}>
       <Starfield count={16} />
       <div style={SSHO.header}>
-        <button onClick={onClose} style={SSHO.backBtn} aria-label={tr("back")}>←</button>
+        <button onClick={onClose} style={SSHO.backBtn} aria-label={tr("back")}>
+          <span style={SSHO.backIcon}>{"\u2190"}</span>
+        </button>
         <div style={SSHO.title}>{tr("shop")}</div>
         <div style={SSHO.coins}><GoldTCoin size={20} /> {formatShopNum(coins)}</div>
       </div>
@@ -224,14 +226,20 @@ const SSHO = {
     borderRadius: 10,
     background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
     border: "1.5px solid var(--purple)",
-    fontSize: 22,
+    fontSize: 0,
     color: "#fff",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.25)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    lineHeight: 1,
+    lineHeight: 0,
     padding: 0,
+  },
+  backIcon: {
+    display: "block",
+    fontSize: 22,
+    lineHeight: "22px",
+    transform: "translateY(-1px)",
   },
   title: {
     fontFamily: "'Lilita One', cursive",
@@ -244,7 +252,7 @@ const SSHO = {
     fontFamily: "'Lilita One', cursive",
     color: "var(--gold)",
     fontSize: 16,
-    background: "rgba(0,0,0,0.35)",
+    background: "linear-gradient(180deg, #10194c, #081032)",
     border: "1px solid rgba(255,210,63,0.4)",
     borderRadius: 12,
     padding: "8px 10px",
@@ -272,7 +280,7 @@ const SSHO = {
     gridTemplateColumns: "1fr auto",
     gap: 12,
     alignItems: "center",
-    background: "linear-gradient(180deg, rgba(255,210,63,0.18), rgba(249,115,22,0.08)), linear-gradient(180deg, var(--bg2), var(--bg1))",
+    background: "linear-gradient(180deg, #293069, #121a48)",
     border: "1.5px solid rgba(255,210,63,0.42)",
     borderRadius: 14,
     padding: 12,
@@ -329,7 +337,7 @@ const SSHO = {
   },
   packCard: {
     position: "relative",
-    background: "linear-gradient(180deg, rgba(26,42,110,0.94), rgba(11,18,56,0.96))",
+    background: "linear-gradient(180deg, #1a2a6e, #0b1238)",
     border: "1.5px solid rgba(124,58,237,0.46)",
     borderRadius: 14,
     padding: "15px 14px 14px",
@@ -380,7 +388,7 @@ const SSHO = {
     letterSpacing: 0.4,
     padding: "5px 8px",
     borderRadius: 10,
-    background: "linear-gradient(180deg, rgba(255,210,63,0.2), rgba(217,119,6,0.08))",
+    background: "linear-gradient(180deg, #4c3c17, #241b08)",
     border: "1.5px solid rgba(255,210,63,0.5)",
     textShadow: "0 1px 0 rgba(0,0,0,0.55), 0 0 12px rgba(255,210,63,0.28)",
   },
@@ -388,7 +396,7 @@ const SSHO = {
     fontFamily: "'Lilita One', cursive",
     color: "var(--gold)",
     fontSize: 20,
-    background: "rgba(0,0,0,0.34)",
+    background: "linear-gradient(180deg, #11183e, #080d28)",
     border: "1.5px solid rgba(255,210,63,0.42)",
     borderRadius: 10,
     padding: "5px 9px",

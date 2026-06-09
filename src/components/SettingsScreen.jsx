@@ -39,7 +39,9 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
 
       {/* Header */}
       <div style={SS.header}>
-        <button onClick={onClose} style={SS.backBtn} aria-label={tr("back")}>←</button>
+        <button onClick={onClose} style={SS.backBtn} aria-label={tr("back")}>
+          <span style={SS.backIcon}>{"\u2190"}</span>
+        </button>
         <div style={SS.title}>{tr("settings")}</div>
         <div style={{ width: 40 }} /> {/* spacer */}
       </div>
@@ -118,7 +120,7 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
 
         {/* À propos */}
         <Section title={tr("about")}>
-          <Row label={tr("version")} value="1.22.5" />
+          <Row label={tr("version")} value="1.22.6" />
           <Row label={tr("studio")}  value="CloneX Studio" />
           <Row label={tr("contact")} value={
             <a href="mailto:pinolando120@gmail.com" style={SS.link}>
@@ -220,14 +222,20 @@ const SS = {
     borderRadius: 10,
     background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
     border: "1.5px solid var(--purple)",
-    fontSize: 22,
+    fontSize: 0,
     color: "#fff",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.25)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    lineHeight: 1,
+    lineHeight: 0,
     padding: 0,
+  },
+  backIcon: {
+    display: "block",
+    fontSize: 22,
+    lineHeight: "22px",
+    transform: "translateY(-1px)",
   },
   title: {
     fontFamily: "'Lilita One', cursive",

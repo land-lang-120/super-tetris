@@ -1,0 +1,52 @@
+# Fichiers à ne PAS uploader publiquement sur Cloudflare
+# (le bundle.js compilé contient déjà tout ce dont l'app a besoin)
+
+node_modules
+.wrangler
+.git
+.github
+.claude
+.vscode
+.idea
+*.log
+.DS_Store
+
+# Build/dev tooling — pas besoin sur le serveur
+build.js
+package.json
+package-lock.json
+bun.lock
+bun.lockb
+yarn.lock
+wrangler.jsonc
+scripts
+
+# PWABuilder packages (signed with our keystore) — JAMAIS public
+*.zip
+*-keystore-passwords.txt
+icons/icon-source.svg
+# (downloads/*.apk EST volontairement servi en public pour la beta)
+
+# Play Store assets (gros, internes — pas pour le navigateur)
+play-store-assets/
+*.aab
+*.apk
+PLAY-STORE-LISTING.md
+PLAY-STORE-DEPLOYMENT-GUIDE.md
+generate-feature-graphic.mjs
+generate-marketing-screenshots.mjs
+
+# Doc — privée
+CAHIER-CHARGES.md
+README.md
+
+# Sources JS/JSX déjà inclues dans bundle.js — pas besoin de servir le brut.
+# (On garde src/styles/*.css car chargés par <link> dans index.html)
+src/components
+src/game
+src/hooks
+src/App.jsx
+src/main.jsx
+
+# IMPORTANT : on garde .well-known/* pour servir assetlinks.json
+# (TWA Digital Asset Links pour Play Store)

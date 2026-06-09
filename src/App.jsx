@@ -30,6 +30,9 @@ const DEFAULT_PROFILE = {
   boosters: { freeze: 1, laser: 1, meteor: 0, magnet: 0 },
   wheelLastFree: 0,      // timestamp dernier spin gratuit
   totalGames: 0,
+  playerName: "",
+  playerId: "",
+  profileCreatedAt: 0,
   history: [],
 };
 
