@@ -239,7 +239,7 @@ const SSHO = {
     display: "block",
     fontSize: 22,
     lineHeight: "22px",
-    transform: "translateY(-1px)",
+    transform: "translateY(-3px)",
   },
   title: {
     fontFamily: "'Lilita One', cursive",

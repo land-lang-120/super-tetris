@@ -120,7 +120,7 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
 
         {/* À propos */}
         <Section title={tr("about")}>
-          <Row label={tr("version")} value="1.22.7" />
+          <Row label={tr("version")} value="1.22.8" />
           <Row label={tr("studio")}  value="CloneX Studio" />
           <Row label={tr("contact")} value={
             <a href="mailto:pinolando120@gmail.com" style={SS.link}>
@@ -238,7 +238,7 @@ const SS = {
     display: "block",
     fontSize: 22,
     lineHeight: "22px",
-    transform: "translateY(-1px)",
+    transform: "translateY(-3px)",
   },
   title: {
     fontFamily: "'Lilita One', cursive",
