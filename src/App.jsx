@@ -27,7 +27,7 @@ const DEFAULT_PROFILE = {
   // PRODUCTION (v3 schema, audit BUG-SEC-ST-2 du 2026-05-05) :
   // Boosters de départ équilibrés. Le reste s'achète au shop / via la roue
   // de la fortune. Le mode "test Pino" (30 chacun) a été retiré.
-  boosters: { freeze: 1, laser: 1, meteor: 0, magnet: 0 },
+  boosters: { freeze: 15, laser: 15, meteor: 15, magnet: 15 },
   wheelLastFree: 0,      // timestamp dernier spin gratuit
   totalGames: 0,
   playerName: "",
@@ -310,6 +310,7 @@ function App() {
         onProfileChange={setProfile}
         onGameOver={handleGameOver}
         onExitToHome={handleHome}
+        onOpenShop={() => setScreen("shop")}
       />
     );
   } else if (screen === "gameover") {

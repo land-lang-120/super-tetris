@@ -1,7 +1,7 @@
 # 🎮 Super Tetris — Cahier de charges
 
 > Le Tetris emblématique réinventé avec 4 boosters fun et la musique iconique
-> Version : **1.22.8** - 2026-06-09 (fleches retour ajustees optiquement, propagation mobile forcee)
+> Version : **1.22.9** - 2026-06-09 (boosters de depart ajustes, plus vers boutique)
 > URL prod : https://super-tetris.landonjouajosephpino.workers.dev
 > Tech : React 18 UMD CDN + Babel build + Terser → bundle.js (95 KB minifié)
 
@@ -134,6 +134,14 @@ Dès déblocage, **Super Tetris est l'app la plus simple à pusher en premier** 
 ---
 
 ## 4. Roadmap
+
+### Patch v1.22.9 (2026-06-09) - Onboarding boosters et raccourci boutique
+
+| ID | Zone | Decision / correction | Fichiers |
+|---|---|---|---|
+| START-BOOSTERS | Economie / onboarding | Les nouveaux joueurs demarrent avec 15 boosters de chaque type pour decouvrir tous les pouvoirs des les premieres sessions | `App.jsx` |
+| BOOSTER-EMPTY | Gameplay | Quand un booster arrive a zero, le compteur affiche un badge `+` au lieu de `0`; le tap ouvre la boutique pour racheter des packs | `BoosterButtons.jsx`, `GameScreen.jsx`, `App.jsx` |
+| CACHE | Propagation mobile | Version `1.22.9`, cache SW `super-tetris-v1.22.9`, bundle query `?v=1.22.9` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
 
 ### Patch v1.22.8 (2026-06-09) - Alignement optique des fleches retour
 

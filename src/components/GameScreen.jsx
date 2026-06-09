@@ -22,7 +22,7 @@
 
 const { useState: useStateGS, useRef: useRefGS, useEffect: useEffectGS, useCallback: useCallbackGS } = React;
 
-function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
+function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange, onOpenShop }) {
   const canvasRef = useRefGS(null);
   const tr = (key, params) => window.STI18n ? window.STI18n.t(key, params) : key;
 
@@ -684,22 +684,8 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
               }));
             }
           }}
-          onBuy={(id) => {
-            const cost = BOOSTER_COSTS[id] || 0;
-            if (typeof onProfileChange !== "function" || !cost) return;
-            onProfileChange(p => {
-              const safe = p || {};
-              if ((safe.coins || 0) < cost) return safe;
-              if (window.STAudio) window.STAudio.play("coin");
-              return {
-                ...safe,
-                coins: (safe.coins || 0) - cost,
-                boosters: {
-                  ...((safe && safe.boosters) || {}),
-                  [id]: (((safe && safe.boosters) || {})[id] || 0) + 1,
-                },
-              };
-            });
+          onBuy={() => {
+            if (typeof onOpenShop === "function") onOpenShop();
           }}
           disabled={paused || G.gameOver}
         />

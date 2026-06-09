@@ -120,7 +120,7 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
 
         {/* À propos */}
         <Section title={tr("about")}>
-          <Row label={tr("version")} value="1.22.8" />
+          <Row label={tr("version")} value="1.22.9" />
           <Row label={tr("studio")}  value="CloneX Studio" />
           <Row label={tr("contact")} value={
             <a href="mailto:pinolando120@gmail.com" style={SS.link}>

@@ -46,8 +46,6 @@ const BOOSTERS = [
 function BoosterButtons({ inventory, cooldowns, coins, costs, onUse, onBuy, disabled }) {
   const inv = inventory || {};
   const cd = cooldowns || {};
-  const wallet = coins || 0;
-  const priceMap = costs || {};
   const tr = (key, params) => window.STI18n ? window.STI18n.t(key, params) : key;
 
   return (
@@ -58,8 +56,7 @@ function BoosterButtons({ inventory, cooldowns, coins, costs, onUse, onBuy, disa
         const empty    = count <= 0;
         const onCD     = cooldown > 0;
         const hasBuy = typeof onBuy === "function";
-        const canBuy = hasBuy && wallet >= (priceMap[b.id] || 0);
-        const isDisabled = !!disabled || onCD || (empty && !canBuy);
+        const isDisabled = !!disabled || onCD || (empty && !hasBuy);
 
         return (
           <div key={b.id} style={SBB.bb}>
@@ -68,7 +65,7 @@ function BoosterButtons({ inventory, cooldowns, coins, costs, onUse, onBuy, disa
               onClick={() => {
                 if (disabled || onCD) return;
                 if (empty) {
-                  if (canBuy) onBuy(b.id);
+                  if (hasBuy) onBuy(b.id);
                 } else {
                   if (typeof onUse === "function") onUse(b.id);
                 }
@@ -92,7 +89,7 @@ function BoosterButtons({ inventory, cooldowns, coins, costs, onUse, onBuy, disa
                     + "0 6px 0 " + b.shadow3d + ", "
                     + "0 8px 16px " + b.glow,
               }}
-              aria-label={b.label + (empty ? " " + tr("unavailable") : " " + tr("booster"))}
+              aria-label={b.label + (empty ? " " + tr("shop") : " " + tr("booster"))}
             >
               {/* Reflet brillant en haut-gauche (bulle de verre Tetroid) */}
               <span style={SBB.shineMain} />
@@ -102,7 +99,7 @@ function BoosterButtons({ inventory, cooldowns, coins, costs, onUse, onBuy, disa
               <span style={SBB.icon}>{b.icon}</span>
 
               {/* Pastille compteur vert OU "+" doré */}
-              {empty && canBuy ? (
+              {empty ? (
                 <span style={SBB.plusBadge}>+</span>
               ) : (
                 <span style={SBB.countBadge}>{count}</span>
