@@ -1,7 +1,7 @@
 # 🎮 Super Tetris — Cahier de charges
 
 > Le Tetris emblématique réinventé avec 4 boosters fun et la musique iconique
-> Version : **1.22.6** - 2026-06-09 (opacite mobile corrigee, fleches retour centrees, profil joueur persistant)
+> Version : **1.22.7** - 2026-06-09 (opacite parametres corrigee, propagation mobile forcee)
 > URL prod : https://super-tetris.landonjouajosephpino.workers.dev
 > Tech : React 18 UMD CDN + Babel build + Terser → bundle.js (95 KB minifié)
 
@@ -134,6 +134,13 @@ Dès déblocage, **Super Tetris est l'app la plus simple à pusher en premier** 
 ---
 
 ## 4. Roadmap
+
+### Patch v1.22.7 (2026-06-09) - Correctif opacite parametres
+
+| ID | Zone | Decision / correction | Fichiers |
+|---|---|---|---|
+| SETTINGS-OPAQUE | Parametres | Le header et le contenu sont places au-dessus du decor, et les blocs de reglages utilisent un fond opaque pour eviter l'effet de page ternie sur mobile | `SettingsScreen.jsx` |
+| CACHE | Propagation mobile | Version `1.22.7`, cache SW `super-tetris-v1.22.7`, bundle query `?v=1.22.7` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
 
 ### Patch v1.22.6 (2026-06-09) - Correctifs mobile post-test
 

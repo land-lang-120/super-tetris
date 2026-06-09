@@ -123,7 +123,7 @@ function HomeScreen({ profile, onNavigate }) {
         <DecoPieces />
       </div>
 
-      {/* v1.22.6 — Marqueur version visible : permet à Pino de vérifier que
+      {/* v1.22.7 — Marqueur version visible : permet à Pino de vérifier que
            le SW a bien servi la dernière build. Si tu vois "v1.13" ou autre
            ici, ton phone est en cache : Settings → Apps → Super Tetris →
            Clear storage. */}
@@ -136,7 +136,7 @@ function HomeScreen({ profile, onNavigate }) {
         marginTop: 12,
         marginBottom: 4,
       }}>
-        v1.22.6
+        v1.22.7
       </div>
     </div>
   );

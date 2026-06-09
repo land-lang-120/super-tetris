@@ -120,7 +120,7 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
 
         {/* À propos */}
         <Section title={tr("about")}>
-          <Row label={tr("version")} value="1.22.6" />
+          <Row label={tr("version")} value="1.22.7" />
           <Row label={tr("studio")}  value="CloneX Studio" />
           <Row label={tr("contact")} value={
             <a href="mailto:pinolando120@gmail.com" style={SS.link}>
@@ -209,8 +209,11 @@ const SS = {
     flexDirection: "column",
     background: "radial-gradient(ellipse at top, #1a2a6e, #0b1238 70%)",
     overflow: "hidden",
+    isolation: "isolate",
   },
   header: {
+    position: "relative",
+    zIndex: 2,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -244,6 +247,8 @@ const SS = {
     letterSpacing: 1,
   },
   content: {
+    position: "relative",
+    zIndex: 2,
     flex: 1,
     overflowY: "auto",
     padding: "8px 16px calc(env(safe-area-inset-bottom, 0px) + 24px)",
@@ -260,7 +265,7 @@ const SS = {
     paddingLeft: 4,
   },
   sectionBody: {
-    background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
+    background: "linear-gradient(180deg, #1a2a6e, #0b1238)",
     borderRadius: 14,
     border: "1.5px solid rgba(124,58,237,0.4)",
     overflow: "hidden",
