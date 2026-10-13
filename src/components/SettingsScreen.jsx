@@ -4,7 +4,7 @@
    Écran paramètres avec :
      - Son (toggle on/off)
      - Vibration (toggle on/off)
-     - Langue (FR / EN, dropdown — extensible à 12 langues V2)
+     - Langue (FR / EN, option conservée pour la roadmap V2)
      - Thème (sombre / clair)
      - Reset des données (avec double confirmation)
      - Crédits & version
@@ -21,6 +21,11 @@ const { useState: useStateSS } = React;
 function SettingsScreen({ settings, onChange, onClose, onReset }) {
   const s = settings || { sound: true, music: true, vibro: true, lang: "fr", theme: "dark" };
   const [confirmReset, setConfirmReset] = useStateSS(false);
+  const tr = (key, params) => window.STI18n ? window.STI18n.t(key, params, s.lang) : key;
+  const languages = window.STI18n ? window.STI18n.languages : [
+    { id: "fr", label: "Français" },
+    { id: "en", label: "English" },
+  ];
 
   function update(patch) {
     if (typeof onChange === "function") {
@@ -34,24 +39,26 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
 
       {/* Header */}
       <div style={SS.header}>
-        <button onClick={onClose} style={SS.backBtn} aria-label="Retour">←</button>
-        <div style={SS.title}>Paramètres</div>
+        <button onClick={onClose} style={SS.backBtn} aria-label={tr("back")}>
+          <span style={SS.backIcon}>{"\u2190"}</span>
+        </button>
+        <div style={SS.title}>{tr("settings")}</div>
         <div style={{ width: 40 }} /> {/* spacer */}
       </div>
 
       <div style={SS.content}>
         {/* Audio & haptics */}
-        <Section title="Audio & vibration">
+        <Section title={tr("audioVibration")}>
           <Row
-            label="Effets sonores"
-            description="Bips au déplacement, lock, line clear, etc."
+            label={tr("soundFx")}
+            description={tr("soundFxDesc")}
             control={
               <Toggle on={s.sound} onChange={(v) => update({ sound: v })} />
             }
           />
           <Row
-            label="Musique"
-            description="Thème iconique Tetris (Korobeiniki) en boucle"
+            label={tr("music")}
+            description={tr("musicDesc")}
             control={
               <Toggle on={s.music !== false} onChange={(v) => {
                 update({ music: v });
@@ -60,8 +67,8 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
             }
           />
           <Row
-            label="Vibration"
-            description="Retour haptique sur Android"
+            label={tr("vibration")}
+            description={tr("vibrationDesc")}
             control={
               <Toggle on={s.vibro} onChange={(v) => update({ vibro: v })} />
             }
@@ -70,25 +77,25 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
 
         {/* Apparence — mode clair retiré (décision Pino) : thème unique
             "Tetris officiel" bleu marine, pas de toggle. */}
-        <Section title="Langue">
+        <Section title={tr("language")}>
           <Row
-            label="Langue de l'app"
+            label={tr("appLanguage")}
             control={
               <select
                 style={SS.select}
                 value={s.lang}
                 onChange={(e) => update({ lang: e.target.value })}
               >
-                <option value="fr">🇫🇷 Français</option>
-                <option value="en">🇬🇧 English</option>
-                {/* V2 : ajouter 10 langues additionnelles */}
+                {languages.map((lang) => (
+                  <option key={lang.id} value={lang.id}>{lang.label}</option>
+                ))}
               </select>
             }
           />
         </Section>
 
         {/* Données */}
-        <Section title="Données">
+        <Section title={tr("data")}>
           <button
             style={SS.dangerBtn}
             onClick={() => {
@@ -101,26 +108,26 @@ function SettingsScreen({ settings, onChange, onClose, onReset }) {
             }}
           >
             {confirmReset
-              ? "⚠️ Vraiment effacer ? Cliquez une 2ᵉ fois"
-              : "Réinitialiser tout (score, XP, boosters, coins)"}
+              ? tr("resetConfirm")
+              : tr("resetAll")}
           </button>
           {confirmReset && (
             <button style={SS.cancelBtn} onClick={() => setConfirmReset(false)}>
-              Annuler
+              {tr("cancel")}
             </button>
           )}
         </Section>
 
         {/* À propos */}
-        <Section title="À propos">
-          <Row label="Version" value="0.1.0" />
-          <Row label="Studio"  value="CloneX Studio" />
-          <Row label="Contact" value={
+        <Section title={tr("about")}>
+          <Row label={tr("version")} value="1.22.10" />
+          <Row label={tr("studio")}  value="CloneX Studio" />
+          <Row label={tr("contact")} value={
             <a href="mailto:pinolando120@gmail.com" style={SS.link}>
               pinolando120@gmail.com
             </a>
           } />
-          <Row label="Confidentialité" value={
+          <Row label={tr("privacy")} value={
             <a href="https://clonex.pages.dev/privacy" target="_blank" rel="noopener noreferrer" style={SS.link}>
               clonex.pages.dev/privacy
             </a>
@@ -202,8 +209,11 @@ const SS = {
     flexDirection: "column",
     background: "radial-gradient(ellipse at top, #1a2a6e, #0b1238 70%)",
     overflow: "hidden",
+    isolation: "isolate",
   },
   header: {
+    position: "relative",
+    zIndex: 2,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -215,17 +225,30 @@ const SS = {
     borderRadius: 10,
     background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
     border: "1.5px solid var(--purple)",
-    fontSize: 22,
+    fontSize: 0,
     color: "#fff",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.25)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    lineHeight: 0,
+    padding: 0,
+  },
+  backIcon: {
+    display: "block",
+    fontSize: 22,
+    lineHeight: "22px",
+    transform: "translateY(-3px)",
   },
   title: {
-    fontFamily: "'Lilita One', cursive",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     fontSize: 22,
     color: "#fff",
     letterSpacing: 1,
   },
   content: {
+    position: "relative",
+    zIndex: 2,
     flex: 1,
     overflowY: "auto",
     padding: "8px 16px calc(env(safe-area-inset-bottom, 0px) + 24px)",
@@ -242,7 +265,7 @@ const SS = {
     paddingLeft: 4,
   },
   sectionBody: {
-    background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
+    background: "linear-gradient(180deg, #1a2a6e, #0b1238)",
     borderRadius: 14,
     border: "1.5px solid rgba(124,58,237,0.4)",
     overflow: "hidden",

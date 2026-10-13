@@ -192,6 +192,40 @@
   }
 
   /**
+   * ☄️ METEOR (v1.14) — destruction d'1 SEULE colonne, synchro impact VFX.
+   * Utilisé par GameScreen pour aligner chaque destruction à l'impact du
+   * météore correspondant (au lieu de tout détruire d'un coup avant les VFX).
+   * NB : pas de gravity ici (appelée 1× à la fin sur l'ensemble de la grille).
+   * Retourne { hits: int, topRow: int }.
+   */
+  function applyMeteorColumn(G, col) {
+    if (!G || !G.grid) return { hits: 0, topRow: -1 };
+    var grid = G.grid;
+    var rows = grid.length;
+    var cols = (grid[0] || []).length;
+    if (col < 0 || col >= cols) return { hits: 0, topRow: -1 };
+
+    // Top de la pile dans cette colonne (re-calculé maintenant, peut avoir
+    // changé depuis le déclenchement du booster)
+    var topRow = -1;
+    for (var r = 0; r < rows; r++) {
+      if (grid[r][col]) { topRow = r; break; }
+    }
+    if (topRow < 0) return { hits: 0, topRow: -1 };
+
+    var hits = 0;
+    for (var dr = 0; dr < METEOR_DEPTH; dr++) {
+      var rr = topRow + dr;
+      if (rr < rows && grid[rr][col]) {
+        grid[rr][col] = 0;
+        hits++;
+      }
+    }
+    G.score = (G.score || 0) + hits * SCORE.meteor;
+    return { hits: hits, topRow: topRow };
+  }
+
+  /**
    * 🧲 MAGNET — gravity multi-passes + clear lignes pleines.
    * Retourne { grid, cellsMoved, linesCleared }.
    */
@@ -231,6 +265,7 @@
     isFrozen: isFrozen,
     applyLaser: applyLaser,
     applyMeteor: applyMeteor,
+    applyMeteorColumn: applyMeteorColumn,
     applyMagnet: applyMagnet,
     applyGravity: applyGravity,
     cellCenterPx: cellCenterPx,

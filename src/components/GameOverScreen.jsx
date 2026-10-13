@@ -1,240 +1,316 @@
-/* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — GameOverScreen
-   ═══════════════════════════════════════════════════════════════════
-   Affiché quand la pièce ne peut plus spawner (top out).
+const { useState: useStateGO } = React;
 
-   Design fidèle aux screenshots Tetris officiel :
-     - Header : badge coins + bouton X (close)
-     - Médaillon central : bouclier violet avec icône (épées croisées
-       ou trophée selon le score)
-     - Titre "BLOCK OUT" en gros (Lilita One)
-     - Sous-titre : "Essayez encore, vous allez y arriver !" / "Nouveau
-       record !" / etc.
-     - Stats : Classement local + Record perso historique
-     - Section "Your Rewards" : XP gagnée + coins gagnés + boosters
-       gagnés au passage de niveau
-     - Bouton "VOIR PUB POUR CONTINUER" (en haut, optionnel) — RewardedAd
-     - Bouton géant vert "RÉESSAYER"
-     - Bouton secondaire "Accueil"
-   ═══════════════════════════════════════════════════════════════════ */
+const REVIVE_COST_COINS = 50;
+const AD_REVIVE_LIMIT = 3;
+const BOOSTER_ORDER = ["freeze", "laser", "meteor", "magnet"];
+const BOOSTER_META = {
+  freeze: { icon: "❄️", label: "Freeze", grad: ["#b0eeff", "#30b0e8", "#0870c0"], ring: "#30b0e8", shadow: "#054880" },
+  laser: { icon: "⚡", label: "Laser", grad: ["#ffb0b0", "#ff2020", "#aa0000"], ring: "#ff2020", shadow: "#700000" },
+  meteor: { icon: "☄️", label: "Meteor", grad: ["#ffe090", "#ff9000", "#c05500"], ring: "#ff9000", shadow: "#7a3000" },
+  magnet: { icon: "🧲", label: "Magnet", grad: ["#e8b0ff", "#b020ff", "#6600cc"], ring: "#b020ff", shadow: "#3a0088" },
+};
 
-const { useState: useStateGO, useEffect: useEffectGO } = React;
-
-function GameOverScreen({ result, profile, onRetry, onContinueWithAd, onHome }) {
+function GameOverScreen({ result, profile, onRetry, onHome, onWatchBoosterAd, onBuyLife }) {
+  const tr = (key, params) => window.STI18n ? window.STI18n.t(key, params) : key;
   const r = result || {};
   const score = r.score ?? 0;
   const linesTotal = r.linesTotal ?? 0;
   const level = r.level ?? 1;
   const xpGain = r.xpGain ?? 0;
   const coinsGain = r.coinsGain ?? 0;
-
+  const coins = (profile && profile.coins) || 0;
   const oldBest = (profile && profile.bestScore) || 0;
-  const newRecord = score > oldBest;
+  const newRecord = score > oldBest && score > 0;
   const bestForDisplay = Math.max(oldBest, score);
+  const canBuyLife = coins >= REVIVE_COST_COINS;
 
-  // V1 : on autorise 1 seul "Continue via pub" par partie
-  const [continueUsed, setContinueUsed] = useStateGO(false);
+  const [finalMode, setFinalMode] = useStateGO(false);
+  const [watchedAds, setWatchedAds] = useStateGO(0);
   const [shareMsg, setShareMsg] = useStateGO(null);
+  const [adBoosters] = useStateGO(makeAdBoosters);
+  const canContinueWithAds = watchedAds > 0;
+  const canWatchMoreAds = watchedAds < AD_REVIVE_LIMIT && typeof onWatchBoosterAd === "function";
 
-  /**
-   * Partage social du score via Web Share API (sheet natif Android :
-   * WhatsApp / SMS / Twitter / Facebook / etc.).
-   * Fallback desktop : copie le texte dans le presse-papiers.
-   */
+  const StarfieldComp = window.Starfield || Starfield;
+
+  function handleWatchAd() {
+    if (!canWatchMoreAds) return;
+    const nextBooster = adBoosters[watchedAds];
+    if (typeof onWatchBoosterAd === "function") {
+      onWatchBoosterAd(nextBooster);
+    }
+    setWatchedAds((n) => Math.min(AD_REVIVE_LIMIT, n + 1));
+  }
+
   function handleShare() {
-    const recordText = newRecord ? "🏆 NOUVEAU RECORD !" : "🎮";
-    const text = recordText
-      + " Je viens de faire " + formatNum(score) + " points sur Super Tetris"
-      + " (niveau " + level + ", " + formatNum(linesTotal) + " lignes) !"
-      + " Bats mon score :";
-    const url = "https://super-tetris.landonjouajosephpino.workers.dev";
+    const recordText = newRecord ? (tr("newRecord") || "NOUVEAU RECORD") + " !" : "Super Tetris";
+    const text = recordText + " " + tr("shareText", {
+      score: formatNum(score),
+      level: level,
+      lines: formatNum(linesTotal),
+    });
+    const url = "https://land-lang-120.github.io/super-tetris/";
     const shareData = { title: "Super Tetris", text: text, url: url };
 
     if (navigator.share) {
-      navigator.share(shareData).catch(function () { /* user cancelled */ });
+      navigator.share(shareData).catch(function () {});
     } else if (navigator.clipboard) {
       navigator.clipboard.writeText(text + " " + url).then(function () {
-        setShareMsg("📋 Score copié — colle-le où tu veux !");
+        setShareMsg(tr("scoreCopied") || "📋 Score copié !");
         setTimeout(function () { setShareMsg(null); }, 2500);
       }).catch(function () {
-        setShareMsg("⚠️ Impossible de copier. Lien : " + url);
+        setShareMsg((tr("copyFailed") || "⚠️ Lien :") + " " + url);
         setTimeout(function () { setShareMsg(null); }, 4000);
       });
-    } else {
-      setShareMsg("Lien : " + url);
-      setTimeout(function () { setShareMsg(null); }, 4000);
     }
-
     if (window.STAudio) window.STAudio.play("button");
   }
 
+  // ═════════════════════════════════════════════════════════════════
+  // Écran 2 : Bilan final (après avoir cliqué sur « Abandonner »)
+  // ═════════════════════════════════════════════════════════════════
+  if (finalMode) {
+    return (
+      <div style={SGO.root}>
+        {StarfieldComp && <StarfieldComp count={18} />}
+        <div style={SGO.finalWrap}>
+          <TetrominoSkull small />
+          <div style={SGO.finalTitle}>
+            {newRecord ? (tr("newRecord") || "NOUVEAU RECORD !") : (tr("finalDefeat") || "PARTIE TERMINÉE")}
+          </div>
+          <div style={SGO.finalSub}>
+            {newRecord
+              ? (tr("recordMsg") || "Bravo, tu viens de battre ton record personnel !")
+              : (tr("finalDefeatDesc") || "Votre progression est sauvegardée. Réessayez pour aller plus loin.")}
+          </div>
+
+          <div style={SGO.finalStats}>
+            <StatPill label={tr("score") || "Score"} value={formatNum(score)} accent />
+            <StatPill label={tr("clearedLines") || "Lignes"} value={linesTotal} />
+            <StatPill label={tr("reachedLevel") || "Niveau"} value={level} />
+            <StatPill label={tr("personalBest") || "Record"} value={formatNum(bestForDisplay)} />
+          </div>
+
+          <div style={SGO.rewardStrip}>
+            <RewardChip icon="XP" label="XP" value={"+" + formatNum(xpGain)} xp />
+            <RewardChip icon="T" label={tr("coins") || "Pièces"} value={"+" + formatNum(coinsGain)} coin />
+          </div>
+
+          <button style={SGO.shareBtn} onClick={handleShare} aria-label={tr("shareScore") || "Partager mon score"}>
+            <span style={SGO.shareIcon}>↗</span>
+            <span>{tr("shareScore") || "Partager mon score"}</span>
+          </button>
+          {shareMsg && <div style={SGO.shareToast} className="pop-in">{shareMsg}</div>}
+
+          {/* Les 2 boutons majeurs : REJOUER et ACCUEIL */}
+          <div style={SGO.finalActionRow}>
+            <button
+              className="btn-3d"
+              style={SGO.finalReplayBtn}
+              onClick={() => {
+                if (window.STAudio) window.STAudio.play("click");
+                if (typeof onRetry === "function") onRetry();
+              }}
+            >
+              🔄 {tr("retry") || "REJOUER"}
+            </button>
+            <button
+              className="btn-3d purple"
+              style={SGO.finalHomeBtn}
+              onClick={() => {
+                if (window.STAudio) window.STAudio.play("click");
+                if (typeof onHome === "function") onHome();
+              }}
+            >
+              🏠 {tr("home") || "ACCUEIL"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // Écran 1 : « Vous etes mort » (Capture d'écran exacte demandée)
+  // ═════════════════════════════════════════════════════════════════
   return (
     <div style={SGO.root}>
-      <Starfield count={20} />
+      {StarfieldComp && <StarfieldComp count={18} />}
 
-      {/* Header : coins + bouton fermer */}
-      <div style={SGO.header}>
+      {/* Top bar avec monnaie et bouton accueil rapide */}
+      <div style={SGO.topBar}>
         <div style={SGO.coinsPill}>
-          <span style={SGO.coinIcon}>👑</span>
-          <span style={SGO.coinValue}>{formatNum((profile && profile.coins) || 0)}</span>
+          <span style={SGO.coinIcon}>T</span>
+          <span style={SGO.coinValue}>{formatNum(coins)}</span>
         </div>
-        <button onClick={onHome} style={SGO.closeBtn} aria-label="Accueil">✕</button>
+        {typeof onHome === "function" && (
+          <button
+            style={SGO.quickHomeBtn}
+            onClick={() => {
+              if (window.STAudio) window.STAudio.play("click");
+              onHome();
+            }}
+            title={tr("home") || "Accueil"}
+            aria-label={tr("home") || "Accueil"}
+          >
+            🏠
+          </button>
+        )}
       </div>
 
-      {/* Médaillon central */}
-      <div style={SGO.medallion} className="pop-in">
-        <Shield newRecord={newRecord} />
+      {/* Hero : Crâne pixelisé + Vous etes mort */}
+      <div style={SGO.hero}>
+        <TetrominoSkull />
+        <div style={SGO.title}>{tr("playerDead") || "Vous etes mort"}</div>
+        <div style={SGO.subtitle}>
+          {tr("continuePrompt") || "Continuez avec des boosters ou rachetez une vie."}
+        </div>
+        <div style={SGO.discreetStats}>
+          <span>{tr("score") || "Score"} <strong>{formatNum(score)}</strong></span>
+          <span>{tr("reachedLevel") || "Niveau atteint"} <strong>{level}</strong></span>
+        </div>
       </div>
 
-      {/* Titre + message */}
-      <div style={SGO.title}>{newRecord ? "NEW RECORD" : "BLOCK OUT"}</div>
-      <div style={SGO.subtitle}>
-        {newRecord ? "Bravo, tu viens de battre ton record !" : "Essayez encore, vous allez y arriver !"}
-      </div>
-
-      {/* Stats principales */}
-      <div style={SGO.statsBlock}>
-        <StatRow label="Score" value={formatNum(score)} accent />
-        <StatRow label="Lignes effacées" value={linesTotal} />
-        <StatRow label="Niveau atteint" value={level} />
-        <StatRow label="Record personnel" value={formatNum(bestForDisplay)} highlight={newRecord} />
-      </div>
-
-      {/* Récompenses */}
-      <div style={SGO.rewardsTitle}>Récompenses</div>
-      <div style={SGO.rewardsRow}>
-        <RewardChip icon="⭐" label="XP" value={"+" + formatNum(xpGain)} />
-        <RewardChip icon="👑" label="Pièces" value={"+" + formatNum(coinsGain)} />
-      </div>
-
-      {/* Bouton "Continuer avec une pub" (1×/partie) */}
-      {!continueUsed && typeof onContinueWithAd === "function" && (
+      {/* Boîte continue avec les boosters et la vidéo */}
+      <div style={SGO.continueBox}>
+        <div style={SGO.boosterPreview}>
+          {adBoosters.map((id, idx) => (
+            <React.Fragment key={idx}>
+              <BoosterOrb id={id} locked={idx >= watchedAds} />
+              {idx < adBoosters.length - 1 && <span style={SGO.plus}>+</span>}
+            </React.Fragment>
+          ))}
+        </div>
+        <div style={SGO.continueText}>
+          {tr("adContinueDesc", { count: Math.min(watchedAds + 1, AD_REVIVE_LIMIT) }) ||
+            ("Regarde une video interstitielle pour debloquer le booster " + Math.min(watchedAds + 1, AD_REVIVE_LIMIT) + " et continuer plus fort.")}
+        </div>
+        {canWatchMoreAds && (
+          <button className="btn-3d gold" style={SGO.watchAdBtn} onClick={handleWatchAd}>
+            {tr("watchAdToContinue") || "Regarder une video"}
+          </button>
+        )}
         <button
-          style={SGO.continueBtn}
+          className="btn-3d"
+          style={{ ...SGO.continueBtn, ...(canContinueWithAds ? null : SGO.disabledBtn) }}
+          disabled={!canContinueWithAds}
           onClick={() => {
-            setContinueUsed(true);
-            onContinueWithAd();
+            if (window.STAudio) window.STAudio.play("click");
+            if (typeof onRetry === "function") onRetry();
           }}
         >
-          <span style={{ fontSize: 18, marginRight: 8 }}>📺</span>
-          <span>Voir une pub pour continuer</span>
+          {tr("continueGame") || "Continuer la partie"}
+        </button>
+      </div>
+
+      {/* Racheter une vie (50 Pièces) */}
+      {typeof onBuyLife === "function" && (
+        <button
+          style={{ ...SGO.lifeBtn, ...(canBuyLife ? null : SGO.lifeBtnDisabled) }}
+          disabled={!canBuyLife}
+          onClick={() => {
+            if (!canBuyLife) return;
+            if (window.STAudio) window.STAudio.play("coin");
+            onBuyLife();
+          }}
+        >
+          <span>{tr("buyLife") || "Racheter une vie"}</span>
+          <strong style={SGO.lifeCost}>
+            <span style={SGO.inlineCoin}>T</span> {REVIVE_COST_COINS}
+          </strong>
         </button>
       )}
 
-      {/* Bouton "Partager mon score" (Web Share API + fallback clipboard) */}
+      {/* Abandonner -> Ouvre le bilan final avec Rejouer et Accueil */}
       <button
-        style={SGO.shareBtn}
-        onClick={handleShare}
-        aria-label="Partager mon score"
+        style={SGO.giveUpBtn}
+        onClick={() => {
+          if (window.STAudio) window.STAudio.play("click");
+          setFinalMode(true);
+        }}
       >
-        <span style={{ fontSize: 18, marginRight: 8 }}>📤</span>
-        <span>Partager mon score</span>
+        {tr("giveUp") || "Abandonner"}
       </button>
-
-      {/* Toast de confirmation (visible 2-4s après partage / copie) */}
-      {shareMsg && (
-        <div style={SGO.shareToast} className="pop-in" key={shareMsg}>
-          {shareMsg}
-        </div>
-      )}
-
-      {/* CTA principal */}
-      <button
-        className="btn-3d"
-        style={SGO.retryBtn}
-        onClick={onRetry}
-      >RÉESSAYER</button>
-
-      <button
-        className="btn-3d purple"
-        style={SGO.homeBtn}
-        onClick={onHome}
-      >Accueil</button>
     </div>
   );
 }
 
-/* ─── Sub-components ──────────────────────────────────────────── */
-function Shield({ newRecord }) {
-  // SVG bouclier violet avec épées croisées (matches le screenshot)
-  return (
-    <svg width="180" height="180" viewBox="0 0 180 180"
-      style={{ filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.5))" }}>
-      <defs>
-        <linearGradient id="shieldGrad" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%"  stopColor="#a855f7" />
-          <stop offset="100%" stopColor="#5b21b6" />
-        </linearGradient>
-        <linearGradient id="centerGrad" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%"  stopColor="#f97316" />
-          <stop offset="100%" stopColor="#c2410c" />
-        </linearGradient>
-      </defs>
-
-      {/* Cercle externe violet */}
-      <circle cx="90" cy="90" r="84" fill="url(#shieldGrad)" stroke="#3b0764" strokeWidth="4" />
-      {/* Anneau gris au-dessus */}
-      <circle cx="90" cy="90" r="74" fill="none" stroke="#cbd5e1" strokeWidth="6" opacity="0.5" />
-      {/* Centre orange (bouclier) */}
-      <circle cx="90" cy="90" r="55" fill="url(#centerGrad)" stroke="#7c2d12" strokeWidth="3" />
-
-      {newRecord ? (
-        // Trophée pour record
-        <g>
-          <path d="M 70 65 L 110 65 L 110 75 L 100 75 L 100 100 L 110 100 L 110 110 L 70 110 L 70 100 L 80 100 L 80 75 L 70 75 Z"
-            fill="#ffd23f" stroke="#92400e" strokeWidth="2" />
-          <path d="M 80 110 L 100 110 L 100 130 L 80 130 Z" fill="#ffd23f" stroke="#92400e" strokeWidth="2" />
-        </g>
-      ) : (
-        // Épées croisées (game over standard)
-        <g>
-          {/* Épée 1 (rouge) — diagonale ↘ */}
-          <g transform="rotate(45, 90, 90)">
-            <rect x="86" y="40" width="8" height="60" fill="#cbd5e1" stroke="#475569" strokeWidth="1.5" />
-            <rect x="80" y="100" width="20" height="6" fill="#fbbf24" stroke="#92400e" strokeWidth="1" />
-            <rect x="84" y="106" width="12" height="14" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1" />
-          </g>
-          {/* Épée 2 (rouge) — diagonale ↙ */}
-          <g transform="rotate(-45, 90, 90)">
-            <rect x="86" y="40" width="8" height="60" fill="#cbd5e1" stroke="#475569" strokeWidth="1.5" />
-            <rect x="80" y="100" width="20" height="6" fill="#fbbf24" stroke="#92400e" strokeWidth="1" />
-            <rect x="84" y="106" width="12" height="14" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1" />
-          </g>
-        </g>
-      )}
-    </svg>
-  );
+function makeAdBoosters() {
+  const pool = BOOSTER_ORDER.slice();
+  const picked = [];
+  while (picked.length < AD_REVIVE_LIMIT) {
+    const idx = Math.floor(Math.random() * pool.length);
+    picked.push(pool.splice(idx, 1)[0]);
+    if (!pool.length) pool.push.apply(pool, BOOSTER_ORDER);
+  }
+  return picked;
 }
 
-function StatRow({ label, value, accent, highlight }) {
+function TetrominoSkull({ small }) {
+  const cell = small ? 12 : 16;
+  const rows = [
+    "011110",
+    "111111",
+    "101101",
+    "111111",
+    "011110",
+    "010010",
+  ];
   return (
-    <div style={{
-      ...SGO.statRow,
-      ...(highlight ? SGO.statRowNew : {}),
-    }}>
-      <span style={SGO.statLabel}>{label}</span>
-      <span style={{
-        ...SGO.statValue,
-        color: accent ? "var(--gold)" : (highlight ? "var(--gold)" : "#fff"),
-        fontSize: accent ? 22 : 16,
-      }}>{value}</span>
+    <div style={{ ...SGO.skullGrid, gridTemplateColumns: "repeat(6, " + cell + "px)" }}>
+      {rows.join("").split("").map((v, i) => (
+        <span
+          key={i}
+          style={{
+            ...SGO.skullCell,
+            width: cell,
+            height: cell,
+            opacity: v === "1" ? 1 : 0,
+          }}
+        />
+      ))}
     </div>
   );
 }
 
-function RewardChip({ icon, label, value }) {
+function BoosterOrb({ id, locked }) {
+  const b = BOOSTER_META[id] || BOOSTER_META.freeze;
+  return (
+    <div
+      style={{
+        ...SGO.boosterOrb,
+        background: "radial-gradient(circle at 35% 30%, " + b.grad[0] + ", " + b.grad[1] + ", " + b.grad[2] + ")",
+        boxShadow: "0 0 0 2px #fff, 0 0 0 4px " + b.ring + ", 0 5px 0 " + b.shadow,
+        filter: locked ? "grayscale(0.55)" : "none",
+        opacity: locked ? 0.55 : 1,
+      }}
+    >
+      {b.icon}
+    </div>
+  );
+}
+
+function StatPill({ label, value, accent }) {
+  return (
+    <div style={SGO.statPill}>
+      <span>{label}</span>
+      <strong style={accent ? SGO.statPillAccent : null}>{value}</strong>
+    </div>
+  );
+}
+
+function RewardChip({ icon, label, value, coin, xp }) {
   return (
     <div style={SGO.chip}>
-      <span style={{ fontSize: 22 }}>{icon}</span>
+      <span style={coin ? SGO.rewardCoinIcon : (xp ? SGO.rewardXpIcon : { fontSize: 20 })}>{icon}</span>
       <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>{label}</span>
-        <span style={{ fontFamily: "'Lilita One', cursive", fontSize: 18, color: "var(--gold)" }}>{value}</span>
+        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 800 }}>{label}</span>
+        <span style={{ fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif", fontSize: 16, color: "var(--gold)" }}>{value}</span>
       </div>
     </div>
   );
 }
 
-/* ─── Helpers ─────────────────────────────────────────────── */
 function formatNum(n) {
   const safe = typeof n === "number" && isFinite(n) ? n : 0;
   return safe.toLocaleString("fr-FR");
@@ -249,15 +325,19 @@ const SGO = {
     alignItems: "center",
     padding: "calc(env(safe-area-inset-top, 0px) + 12px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px)",
     overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
     background: "radial-gradient(ellipse at center, #1a2a6e 0%, #0b1238 70%)",
+    isolation: "isolate",
   },
-
-  header: {
+  topBar: {
+    position: "relative",
+    zIndex: 2,
     width: "100%",
+    maxWidth: 360,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 10,
   },
   coinsPill: {
     display: "inline-flex",
@@ -266,153 +346,359 @@ const SGO = {
     background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
     border: "1.5px solid var(--purple)",
     borderRadius: 100,
-    padding: "6px 16px 6px 10px",
+    padding: "6px 14px 6px 9px",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 0 rgba(0,0,0,0.3)",
   },
-  coinIcon: { fontSize: 18 },
+  quickHomeBtn: {
+    background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
+    border: "1.5px solid var(--purple)",
+    borderRadius: 12,
+    width: 38,
+    height: 38,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 18,
+    cursor: "pointer",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.25)",
+  },
+  coinIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 14,
+    color: "#4a2600",
+    background: "radial-gradient(circle at 32% 26%, #fff7ad, #ffd23f 48%, #d97706 100%)",
+    border: "1.5px solid rgba(255,255,255,0.78)",
+    boxShadow: "inset 1px 1px 0 rgba(255,255,255,0.55), inset -1px -2px 0 rgba(120,53,15,0.45), 0 2px 0 #92400e",
+  },
   coinValue: {
-    fontFamily: "'Lilita One', cursive",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     fontSize: 16,
     color: "var(--gold)",
-    minWidth: 40,
+    minWidth: 34,
     textAlign: "center",
   },
-  closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    background: "linear-gradient(180deg, var(--blue), #1e40af)",
-    border: "1.5px solid var(--sky)",
-    fontSize: 18,
-    color: "#fff",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 0 rgba(0,0,0,0.3)",
-  },
-
-  medallion: {
-    margin: "10px 0 16px",
-  },
-
-  title: {
-    fontFamily: "'Lilita One', cursive",
-    fontSize: "clamp(36px, 9vw, 50px)",
-    color: "#fff",
-    letterSpacing: 3,
-    textShadow: "0 4px 0 rgba(0,0,0,0.4), 0 8px 16px rgba(0,0,0,0.4)",
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-    textAlign: "center",
-    marginBottom: 24,
-    fontWeight: 600,
-  },
-
-  statsBlock: {
+  hero: {
+    position: "relative",
+    zIndex: 2,
     width: "100%",
     maxWidth: 360,
     display: "flex",
     flexDirection: "column",
-    gap: 8,
-    marginBottom: 24,
+    alignItems: "center",
+    marginTop: 6,
+    marginBottom: 14,
   },
-  statRow: {
+  skullGrid: {
+    display: "grid",
+    gap: 3,
+    padding: 12,
+    borderRadius: 16,
+    background: "linear-gradient(180deg, #182155, #080d28)",
+    border: "1.5px solid rgba(255,255,255,0.12)",
+    boxShadow: "0 8px 18px rgba(0,0,0,0.34)",
+    marginBottom: 14,
+  },
+  skullCell: {
+    borderRadius: 3,
+    background: "linear-gradient(180deg, #f8fafc, #94a3b8)",
+    boxShadow: "0 2px 0 #475569, inset 0 1px 0 rgba(255,255,255,0.7)",
+  },
+  title: {
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: "clamp(34px, 9vw, 48px)",
+    color: "#fff",
+    letterSpacing: 2,
+    textShadow: "0 4px 0 rgba(0,0,0,0.4), 0 8px 16px rgba(0,0,0,0.4)",
+    textAlign: "center",
+  },
+  subtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.72)",
+    textAlign: "center",
+    fontWeight: 800,
+  },
+  discreetStats: {
+    display: "flex",
+    gap: 14,
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginTop: 10,
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  continueBox: {
+    position: "relative",
+    zIndex: 2,
+    width: "100%",
+    maxWidth: 360,
+    background: "linear-gradient(180deg, #2a2f67, #101846)",
+    border: "1.5px solid rgba(255,210,63,0.45)",
+    borderRadius: 14,
+    padding: 13,
+    marginBottom: 12,
+    boxShadow: "0 4px 0 rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
+  },
+  boosterPreview: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  boosterOrb: {
+    width: 48,
+    height: 48,
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 24,
+    flexShrink: 0,
+  },
+  plus: {
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 24,
+    color: "#fff",
+    textShadow: "0 2px 0 rgba(0,0,0,0.45)",
+  },
+  continueText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 12,
+    lineHeight: 1.3,
+    fontWeight: 800,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  watchAdBtn: {
+    width: "100%",
+    minHeight: 44,
+    fontSize: 15,
+    marginBottom: 10,
+  },
+  continueBtn: {
+    width: "100%",
+    minHeight: 44,
+    fontSize: 17,
+  },
+  disabledBtn: {
+    opacity: 0.5,
+    filter: "grayscale(0.7)",
+    cursor: "not-allowed",
+  },
+  lifeBtn: {
+    position: "relative",
+    zIndex: 2,
+    width: "100%",
+    maxWidth: 360,
+    minHeight: 48,
+    borderRadius: 14,
+    border: "1.5px solid rgba(255,210,63,0.6)",
+    background: "linear-gradient(180deg, #2e315f, #11183e)",
+    color: "#fff",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 17,
+    letterSpacing: 0.4,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "10px 16px",
-    background: "rgba(0,0,0,0.35)",
-    borderRadius: 12,
-    border: "1px solid rgba(124,58,237,0.4)",
-  },
-  statRowNew: {
-    background: "linear-gradient(180deg, rgba(255,210,63,0.2), rgba(255,210,63,0.05))",
-    border: "1.5px solid var(--gold)",
-  },
-  statLabel: { fontSize: 13, color: "rgba(255,255,255,0.7)", fontWeight: 700 },
-  statValue: {
-    fontFamily: "'Lilita One', cursive",
-    color: "#fff",
-  },
-
-  rewardsTitle: {
-    fontFamily: "'Lilita One', cursive",
-    fontSize: 20,
-    color: "rgba(255,255,255,0.85)",
-    textAlign: "center",
-    marginBottom: 12,
-    letterSpacing: 1,
-  },
-  rewardsRow: {
-    display: "flex",
     gap: 12,
-    marginBottom: 24,
+    padding: "12px 14px",
+    marginBottom: 10,
+    boxShadow: "0 4px 0 rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.12)",
+    cursor: "pointer",
+  },
+  lifeBtnDisabled: {
+    opacity: 0.48,
+    filter: "grayscale(0.75)",
+    cursor: "not-allowed",
+  },
+  lifeCost: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    color: "var(--gold)",
+    fontSize: 18,
+  },
+  inlineCoin: {
+    width: 22,
+    height: 22,
+    borderRadius: "50%",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 14,
+    color: "#4a2600",
+    background: "radial-gradient(circle at 32% 26%, #fff7ad, #ffd23f 48%, #d97706 100%)",
+    border: "1.5px solid rgba(255,255,255,0.78)",
+    boxShadow: "inset 1px 1px 0 rgba(255,255,255,0.55), inset -1px -2px 0 rgba(120,53,15,0.45), 0 2px 0 #92400e",
+  },
+  giveUpBtn: {
+    position: "relative",
+    zIndex: 2,
+    width: "100%",
+    maxWidth: 360,
+    minHeight: 44,
+    border: "1.5px solid rgba(248,113,113,0.48)",
+    borderRadius: 14,
+    color: "#fff",
+    background: "linear-gradient(180deg, #7f1d1d, #3b111f)",
+    fontSize: 15,
+    fontWeight: 900,
+    boxShadow: "0 3px 0 rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.1)",
+    cursor: "pointer",
+  },
+  finalWrap: {
+    position: "relative",
+    zIndex: 2,
+    width: "100%",
+    maxWidth: 380,
+    minHeight: "100%",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "18px 0",
+  },
+  finalTitle: {
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    color: "#fff",
+    fontSize: 34,
+    letterSpacing: 1.5,
+    textAlign: "center",
+    textShadow: "0 3px 0 rgba(0,0,0,0.42)",
+  },
+  finalSub: {
+    marginTop: 5,
+    marginBottom: 14,
+    color: "rgba(255,255,255,0.68)",
+    fontSize: 13,
+    fontWeight: 800,
+    textAlign: "center",
+  },
+  finalStats: {
+    width: "100%",
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 8,
+    marginBottom: 12,
+  },
+  statPill: {
+    minHeight: 56,
+    borderRadius: 12,
+    border: "1px solid rgba(124,58,237,0.36)",
+    background: "linear-gradient(180deg, #11183e, #080d28)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 11,
+    fontWeight: 900,
+  },
+  statPillAccent: {
+    color: "var(--gold)",
+    fontSize: 18,
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+  },
+  rewardStrip: {
+    display: "flex",
+    gap: 10,
     flexWrap: "wrap",
     justifyContent: "center",
+    marginBottom: 12,
   },
   chip: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     background: "linear-gradient(180deg, var(--bg2), var(--bg1))",
     border: "1.5px solid var(--purple)",
-    borderRadius: 14,
-    padding: "10px 16px",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 4px 0 rgba(0,0,0,0.3)",
-    minWidth: 130,
+    borderRadius: 12,
+    padding: "9px 12px",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.3)",
+    minWidth: 118,
   },
-
-  continueBtn: {
+  rewardCoinIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: "50%",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: "100%",
-    maxWidth: 360,
-    padding: "14px 18px",
-    background: "linear-gradient(180deg, var(--orange), #c2410c)",
-    color: "#fff",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     fontSize: 14,
-    fontWeight: 800,
-    borderRadius: 14,
-    border: "1.5px solid #fb923c",
-    marginBottom: 12,
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 0 rgba(0,0,0,0.3)",
-    fontFamily: "'Nunito', sans-serif",
+    color: "#4a2600",
+    background: "radial-gradient(circle at 32% 26%, #fff7ad, #ffd23f 48%, #d97706 100%)",
+    border: "1.5px solid rgba(255,255,255,0.78)",
   },
-
-  retryBtn: {
-    width: "100%",
-    maxWidth: 360,
-    fontSize: 24,
-    padding: "18px 24px",
-    marginBottom: 12,
-    letterSpacing: 1,
+  rewardXpIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 11,
+    color: "#052e16",
+    background: "linear-gradient(180deg, #86efac, #22c55e)",
+    border: "1.5px solid rgba(255,255,255,0.7)",
+    boxShadow: "inset 1px 1px 0 rgba(255,255,255,0.45), 0 2px 0 #166534",
   },
-  homeBtn: {
-    width: "100%",
-    maxWidth: 360,
-    fontSize: 16,
-    padding: "12px 24px",
+  shareIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+    background: "rgba(255,255,255,0.14)",
+    border: "1px solid rgba(255,255,255,0.24)",
+    fontSize: 15,
+    lineHeight: 1,
   },
-
-  /* Bouton partage : style "secondary action" (bleu, sous le retry) */
   shareBtn: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
-    maxWidth: 360,
     padding: "13px 18px",
     background: "linear-gradient(180deg, var(--blue), #1e40af)",
     color: "#fff",
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 900,
     borderRadius: 14,
     border: "1.5px solid var(--sky)",
     marginBottom: 12,
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 0 rgba(0,0,0,0.3)",
-    fontFamily: "'Nunito', sans-serif",
+    cursor: "pointer",
+  },
+  finalActionRow: {
+    display: "flex",
+    gap: 12,
+    width: "100%",
+    marginTop: 8,
+  },
+  finalReplayBtn: {
+    flex: 1,
+    fontSize: 18,
+    padding: "14px 10px",
+    cursor: "pointer",
+  },
+  finalHomeBtn: {
+    flex: 1,
+    fontSize: 18,
+    padding: "14px 10px",
     cursor: "pointer",
   },
   shareToast: {
@@ -425,10 +711,9 @@ const SGO = {
     padding: "10px 18px",
     borderRadius: 10,
     fontSize: 13,
-    fontWeight: 600,
+    fontWeight: 700,
     border: "1px solid var(--sky)",
     zIndex: 200,
-    boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
   },
 };
 

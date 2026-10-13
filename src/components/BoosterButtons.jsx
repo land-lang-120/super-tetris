@@ -43,9 +43,10 @@ const BOOSTERS = [
   },
 ];
 
-function BoosterButtons({ inventory, cooldowns, onUse, onBuy, disabled }) {
+function BoosterButtons({ inventory, cooldowns, coins, costs, onUse, onBuy, disabled }) {
   const inv = inventory || {};
   const cd = cooldowns || {};
+  const tr = (key, params) => window.STI18n ? window.STI18n.t(key, params) : key;
 
   return (
     <div style={SBB.root}>
@@ -54,7 +55,8 @@ function BoosterButtons({ inventory, cooldowns, onUse, onBuy, disabled }) {
         const cooldown = cd[b.id] ?? 0;
         const empty    = count <= 0;
         const onCD     = cooldown > 0;
-        const isDisabled = !!disabled || onCD;
+        const hasBuy = typeof onBuy === "function";
+        const isDisabled = !!disabled || onCD || (empty && !hasBuy);
 
         return (
           <div key={b.id} style={SBB.bb}>
@@ -63,17 +65,17 @@ function BoosterButtons({ inventory, cooldowns, onUse, onBuy, disabled }) {
               onClick={() => {
                 if (disabled || onCD) return;
                 if (empty) {
-                  if (typeof onBuy === "function") onBuy(b.id);
+                  if (hasBuy) onBuy(b.id);
                 } else {
                   if (typeof onUse === "function") onUse(b.id);
                 }
               }}
-              disabled={isDisabled && !empty}
+              disabled={isDisabled}
               className="st-candy"
               style={{
                 ...SBB.bi,
                 opacity: (disabled || onCD) ? 0.45 : 1,
-                cursor: isDisabled && !empty ? "not-allowed" : "pointer",
+                cursor: isDisabled ? "not-allowed" : "pointer",
                 background: empty
                   ? "radial-gradient(circle at 35% 30%, #555, #333, #111)"
                   : "radial-gradient(circle at 35% 30%, "
@@ -87,7 +89,7 @@ function BoosterButtons({ inventory, cooldowns, onUse, onBuy, disabled }) {
                     + "0 6px 0 " + b.shadow3d + ", "
                     + "0 8px 16px " + b.glow,
               }}
-              aria-label={b.label + " booster"}
+              aria-label={b.label + (empty ? " " + tr("shop") : " " + tr("booster"))}
             >
               {/* Reflet brillant en haut-gauche (bulle de verre Tetroid) */}
               <span style={SBB.shineMain} />
@@ -203,7 +205,7 @@ const SBB = {
     width: 20, height: 20,
     fontSize: "0.7rem",
     fontWeight: 900,
-    fontFamily: "'Lilita One', sans-serif",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -212,7 +214,7 @@ const SBB = {
     textShadow: "0 1px 2px rgba(0,60,0,0.8)",
     zIndex: 10,
   },
-  /* Badge "+" doré quand vide → renvoie au shop */
+  /* Badge "+" doré quand un achat réel est branché. Masqué en V1 Play Store. */
   plusBadge: {
     position: "absolute",
     bottom: -4, right: -4,
@@ -222,7 +224,7 @@ const SBB = {
     width: 20, height: 20,
     fontSize: "0.85rem",
     fontWeight: 900,
-    fontFamily: "'Lilita One', sans-serif",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -246,7 +248,7 @@ const SBB = {
   },
   /* Label sous le bonbon */
   label: {
-    fontFamily: "'Lilita One', sans-serif",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     fontSize: "0.6rem",
     letterSpacing: 0.5,
     color: "#e8b0ff",

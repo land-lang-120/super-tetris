@@ -1,947 +1,643 @@
 # 🎮 Super Tetris — Cahier de charges
 
-> Jeu de puzzle Tetris avancé, réplique du Tetris officiel mobile, avec boosters, roue de la fortune, classement mondial, missions et pubs récompensées.
-> Version : **1.13** — 2026-05-04 (3 fixes critiques par Claude GitHub App + CI/CD)
-> Studio : CloneX Studio (Joseph Pino Lando Njoua)
-> Stack : **React 18** (CDN) + **Babel pré-transpilé** (pattern Byer) + **Canvas 2D** + **localStorage** + **Cloudflare Workers Static Assets** (hébergement) + **GitHub Actions CI/CD** + **Google Play Billing** (achats intégrés futurs)
-> URL prod : **`https://super-tetris.landonjouajosephpino.workers.dev`** (déployée auto sur push main via GHA)
-> Repo : `https://github.com/land-lang-120/super-tetris` (public)
-> CI/CD : GitHub Actions (`.github/workflows/deploy.yml`) — auto-deploy sur push main + branches `claude/**`
-> Voir aussi : `ARCHITECTURE.md` (détails techniques) · `PROGRESS.md` (suivi du dev)
+> Le Tetris emblématique réinventé avec 4 boosters fun et la musique iconique
+> Version : **1.24.0** - 2026-10-13 (Pérennisation Typographie Grasse Arcade, Embarquement Polices Hors-ligne & Déploiement Cloudflare)
+> URL prod : https://land-lang-120.github.io/super-tetris/
+> Tech : React 18 UMD CDN + Babel build + Terser → bundle.js (95 KB minifié)
 
 ---
 
-## 0. 📊 État d'avancement (snapshot 2026-05-04 — V1.13 EN PROD 🎉)
+## 📋 DÉMARCHE À SUIVRE — À LIRE AVANT CHAQUE ACTION
 
-### 🆕 RÉSUMÉ — où on en est NOW (4 mai 2026, ~02h00)
+> **Règle absolue Pino, à appliquer pour TOUTE modification de cette app :**
 
-| Aspect | Statut |
-|---|---|
-| 🌐 **Déploiement live** | ✅ `super-tetris.landonjouajosephpino.workers.dev` — v1.13 (SW v1.13 + assetlinks A5:D1...) |
-| 🤖 **CI/CD GitHub Actions** | ✅ Auto-deploy sur push main + branches `claude/**` (secret `CLOUDFLARE_API_TOKEN` configuré) |
-| 🎮 **Gameplay core** | ✅ Marathon, 7 pièces, SRS, hold, ghost, hard/soft drop, T-spin, scoring Guideline |
-| 🍬 **Boosters** | ✅ Les 4 fonctionnels avec **VFX style Tetroid** : FREEZE (voile bleu+flocons+cristaux), LASER (beams qui balaient), METEOR (10 météorites avec trails), MAGNET (vagues violettes) |
-| 🔊 **Sons boosters** | ✅ Sons spécifiques par booster (boosterFreeze/Laser/Meteor/Magnet) + parité Tetroid |
-| 🎵 **Musique** | ✅ Korobeiniki en boucle (mélodie + basse + drums) — port Tetroid |
-| 📳 **Haptics** | ✅ Vibrations Android avec patterns par action |
-| 💥 **Particules** | ✅ Burst au clear de ligne + explosions + shockwaves boosters |
-| 🎨 **Tetrominos 3D** | ✅ **v1.13** : `drawCell` refait avec 5+ couches (gradient + reflets + inner shadow + highlight rond) — vraies cellules bombées style btn-3d |
-| 🎯 **Tap rotation** | ✅ **v1.13** : double-tap=hold supprimé (cause des "pièces qui disparaissent"). Hold via Shift/C uniquement |
-| 📐 **Canvas net** | ✅ **v1.13** : retour au sizing fixe 400×800 (la v1.12 dynamic DPR causait du flou) |
-| 🏠 **HomeScreen** | ✅ Trophée 3D + RECRUE centré + boutons Play/Wheel/Settings + bandeau bas |
-| ⚙️ **SettingsScreen** | ✅ Sound + Music + Vibro + Langue + Reset double-confirm |
-| 🎰 **FortuneWheel** | ✅ 8 segments pondérés + animation + 1 spin gratuit/24h |
-| 💀 **GameOverScreen** | ✅ Médaillon SVG + stats + bouton **📤 Partager** (Web Share API) + RÉESSAYER + Pub continue (stub) |
-| 📱 **PWA** | ✅ Manifest + SW v1.13 (network-first) + icônes 192/512 PNG |
-| 📦 **APK Android** | ✅ Signed AAB + APK régénéré v1.13 — accessible sur https://super-tetris.workers.dev/download |
-| 🔐 **Assetlinks TWA** | ✅ Fingerprint A5:D1:9B:25:47:4C... aligné prod ↔ APK → mode standalone fullscreen Android |
-| 🤖 **App GitHub Claude** | ✅ Installée sur les 15+ repos land-lang-120 (peut taguer `@claude` dans PR/issue pour review/fix) |
-| 🚧 **Pas encore** | ❌ Tournois (modèle C, threshold $10K), parrainage, leaderboard Firebase, 12 langues, AdMob réel, Google Play Billing, missions, skins |
+1. **Développer pas à pas** chaque élément demandé. Pas de "mega-fix" en une seule passe — un fix, on teste, on passe au suivant.
+2. **Corriger un par un** les éléments énumérés. À chaque fix, vérifier que rien n'est cassé ailleurs (game loop, boosters timing, audio context, save schema versioning).
+3. **Tester dans le Preview MCP** quand c'est possible (`mcp__Claude_Preview__preview_start` + `preview_screenshot` + `preview_eval`) avant de déployer en production.
+4. **Audit minutieux du code** après tous les fixes : relire chaque bloc modifié, vérifier que les invariants tiennent (pas de race condition booster, pas de leak RAF, pas de drift audio, pas de mock visible Play Store).
+5. **Mettre à jour CE CAHIER** avec :
+   - Bumper la version (semver)
+   - Ajouter section "Patch vX.Y.Z" avec tableau # / Bug audit / Fix / Fichier
+   - Inclure une checklist senior post-fix listant les invariants vérifiés
+6. **Commit + deploy + bumper SW cache** (`CACHE_NAME = "super-tetris-v..."`) pour forcer la propagation chez les users.
 
-### 📍 URL de prod
-**`https://super-tetris.landonjouajosephpino.workers.dev`**
-
-⚠️ URL en `.workers.dev` parce que Cloudflare a auto-créé le projet en mode **"Workers Static Assets"** (nouvelle plateforme qui remplace Pages classique).
-
-### 🚀 Workflow déploiement actuel (v1.13+)
-**Auto-deploy via GitHub Actions** (préféré) :
-- Push sur `main` ou branche `claude/**` → GHA build + deploy automatique
-- Le secret `CLOUDFLARE_API_TOKEN` est configuré dans GitHub repo settings
-- Workflow : `.github/workflows/deploy.yml` (utilise wrangler@4)
-
-**Deploy manuel** (en cas d'urgence ou debug) :
-```bash
-CLOUDFLARE_API_TOKEN="cfut_..." npx wrangler deploy
-```
-
-⚠️ Le token Cloudflare expire après 1 mois max. Renouveler via `https://dash.cloudflare.com/profile/api-tokens` puis update via :
-```bash
-echo "<NEW_TOKEN>" | gh secret set CLOUDFLARE_API_TOKEN -R land-lang-120/super-tetris
-```
+> *Pino 2026-05-06 : "Note ça comme démarche à suivre dans chaque cahier de charge de manière à le lire avant chaque action histoire de ne jamais oublier."*
 
 ---
-
-### 🔄 Versions déployées (historique)
-
-| Ver | Quand | Quoi |
-|---|---|---|
-| **v1.0** | 2/5 23:30 | Squelette React, 7 écrans, Tetris jouable, 19 modules |
-| **v1.1** | 3/5 00:30 | Canvas plus grand + HUD repensé (SCORE/TIME hero) + section "Compétitions" |
-| **v1.2** | 3/5 01:00 | Canvas vraiment plus grand + RECRUE centré (grid 3-col) |
-| **v1.3** | 3/5 01:45 | **Batch 7** : audio.js + haptics.js + particles.js + boosters.js (logique stub) |
-| **v1.4** | 3/5 02:30 | Canvas 3× plus grand + boosters cercles arcade (1ère version) |
-| **v1.5** | 3/5 03:00 | HUD compact 2 rangées (LINES retiré, NEXT/HOLD intégrés) |
-| **v1.6** | 3/5 03:30 | **Boosters STYLE BONBON Tetroid exact** (radial gradient + reflets + cerclages + couleurs corrigées) |
-| **v1.7** | 3/5 03:45 | Canvas flex 100% + audio resume fix + HUD 1 rangée [LVL/COMBO/NEXT/SCORE] + TIMER pill flottant |
-| **v1.8** | 3/5 04:00 | **Musique iconique Korobeiniki** (port Tetroid : mélodie + basse + drums + scheduler) + canvas COLLE au HUD |
-| **v1.8.1** | 3/5 04:15 | Hotfix ReferenceError "paused before init" (ordre des hooks) |
-| **v1.9** | 3/5 04:30 | **Boosters refondus FIDÈLES Tetroid** : LASER détruit jusqu'à 4 lignes + gravity, METEOR 1 météore par colonne (10 au total) + 3 cellules verticales + gravity, MAGNET multi-pass + clear lines en cascade. Compteurs starter → 30 de chaque pour test. |
-| **v1.9.1** | 3/5 11:20 | Manifest PWABuilder-ready (id, scope, screenshots, shortcuts) |
-| **v1.9.2** | 3/5 11:25 | Icons PNG (192/512/maskable) générées via sharp + PWABuilder unblock |
-| **v1.9.3** | 3/5 11:55 | assetlinks.json déployé (TWA Digital Asset Links) |
-| **v1.10** | 3/5 12:30 | **Bouton 📤 Partager mon score** (Web Share API + fallback clipboard) sur GameOver |
-| **v1.11** | 3/5 13:30 | Canvas pixel-perfect avec ResizeObserver (tentative fix flou — fonctionnait mais incomplet) |
-| **v1.12** | 3/5 21:30 | ⚠️ **RÉGRESSION** : useLayoutEffect canvas + double-tap 180ms + booster-fx.js → empire le rendu (test Pino négatif) |
-| **v1.13** | 4/5 02:00 | ✅ **3 BUGS ST FIXÉS par Claude GitHub App** (branche `claude/super-tetris-byer-dev-YRgBg` mergée) : 1) revert canvas fixe 400×800 (fix flou) ; 2) suppression double-tap=hold (fix disparition) ; 3) logique boosters IMMÉDIATE + VFX en parallèle (fix race condition). BONUS : `drawCell` 5+ couches (3D vraiment bombé), sons par booster, GitHub Actions CI/CD auto-deploy. |
-
-### 📦 Bundle actuel (v1.13)
-- **25 fichiers** game/components/hooks/booster-fx → `bundle.js`
-- **~180 KB** non-gzippé (~55 KB gzip)
-- Build : `node build.js` (~3-9 sec)
-- Deploy : auto via GHA OU manuel `npx wrangler deploy`
-- APK : `node scripts/build-aab.js` (régen via PWABuilder cloudapk API)
-
----
-
-## 0. 📊 État d'avancement (snapshot historique — V1 STRUCTURE COMPLÈTE LIVRÉE 🎉)
-
-> Source de vérité unique pour répondre à "où en est-on ?".
-> Mise à jour à CHAQUE batch livré (push GitHub).
-
-### ✅ FAIT (livré + commité + push)
-
-**Batch 1 — Structure & design tokens** (commit `c76bdff`)
-- `manifest.json` : "Super Tetris", theme #0b1238, categories games+puzzle
-- `CAHIER-CHARGES.md` : 8 sections + checklist senior 13 règles + état 3 points
-- `src/styles/variables.css` : palette Tetris officielle (bleu marine + violet + arc-en-ciel + gold)
-- `src/styles/global.css` : reset + animations (fade-in, pop-in, shake, pulse, float) + classes (.btn-3d, .card, .logo-rainbow, .starfield)
-
-**Batch 2 — Logique de jeu pure** (5 modules game/)
-- `pieces.js` : 7 tetrominoes + 4 rotations + tables SRS wall-kicks (JLSTZ + I)
-- `bag.js` : système 7-bag fair + queue 5+ pièces
-- `core.js` : grille, collide, lock, clearLines, rotation SRS, dropToBottom, isTSpin, isGameOver, spawnPiece
-- `scoring.js` : score Tetris Guideline (single/double/triple/tetris/T-spin/combo/B2B) + niveau 1-20 + gravité ms + XP/coins
-- `render.js` : canvas 2D (board, pièces 3D, ghost piece pointillé, mini-pieces HUD)
-
-**Batch 3 — Premiers écrans React**
-- `LoadingScreen.jsx` : splash 1.8s avec logo arc-en-ciel + barre progression + 8 hints rotatifs + spinner + starfield
-- `HomeScreen.jsx` : trophée 3D SVG inline + boutons Settings/PLAY/Wheel + header (coins/rang/⚙️) + bandeau bas "NIVEAUX TRÉPIDANTS"
-
-**Batch 4 — Game UI**
-- `useGameLoop.js` : RAF loop + cleanup + visibility pause + frame skip cap (checklist senior #11-13)
-- `useStorage.js` : wrapper localStorage versionné (st_v) + cache mémoire + safeRead/safeWrite
-- `HUD.jsx` : TIME / TARGET / NEXT / SCORE / LVL / COMBO / HOLD avec mini-canvas
-- `BoosterButtons.jsx` : 4 boutons fixes (freeze/laser/meteor/magnet) + cooldowns + bouton "+" si vide
-- `GameScreen.jsx` : canvas + inputs touch (swipes + tap rotate + double-tap hold) + clavier (arrows/X/Z/Space/Shift/Esc) + pause modal + combo banner
-
-**Batch 5 — Features metagame**
-- `GameOverScreen.jsx` : médaillon SVG (épées ou trophée selon record) + stats + récompenses + bouton "Voir pub pour continuer" + RÉESSAYER + Accueil
-- `FortuneWheel.jsx` : 8 segments pondérés + animation 4.5s easeOutCubic + 1 spin gratuit/24h + spin payant 50 coins + modal résultat
-- `RewardedAd.jsx` : stub V1 (5s countdown, skippable) — sera remplacé par AdMob en V2
-- `SettingsScreen.jsx` : Toggle (sound/vibro) + SegmentedControl (theme) + select (langue) + reset double-confirm + crédits
-
-**Batch 6 — Wire-up & build**
-- `Starfield.jsx` : composant décoratif réutilisable (24 étoiles scintillantes par défaut)
-- `App.jsx` : composant racine, routing 7 écrans, single source of truth profile+settings, handlers (gameOver, retry, wheelReward, resetData)
-- `main.jsx` : entry React + ErrorBoundary class + ReactDOM.createRoot
-- `build.js` : Babel CLI script (preset-env + preset-react) — concatène 19 fichiers en `bundle.js` (~132 KB)
-- `sw.js` : Service Worker v1 (network-first HTML/JS/CSS, cache-first assets)
-- `package.json` : devDependencies Babel + scripts build/dev/test
-- ✅ **Bundle généré : 19 fichiers → 132.6 KB en 3.6s**
-
-### 🚧 EN COURS (mise à jour 2026-05-03)
-
-**Patch design v1.1 (retour Pino post-déploiement)** :
-- ✅ Canvas plus grand + responsive (aspect ratio 1:2, fit viewport)
-- ✅ HUD repensé : SCORE (gold huge) + TIME (sky huge) côte à côte en hero row
-- ✅ Section "Compétitions" ajoutée au cahier (Modèle A vs B + alertes légales)
-- 🚧 À builder + push (`node build.js && git push`)
-
-**Décision business à prendre (avant V2)** :
-- Choisir entre **Modèle A** (cash réel, nécessite licence) et **Modèle B** (sponsored + premium pass, zéro risque légal). Voir section 3.5bis ci-dessus.
-
-### 📋 À FAIRE
-
-**Tests & validation V1 (~30 min)**
-- Test local : `cd super-tetris && python -m http.server 8000` puis ouvrir `http://localhost:8000`
-- Vérifier les 7 écrans (loading → home → game → gameover → wheel → settings → fallback)
-- Vérifier les inputs (clavier + touch + souris)
-- Vérifier la persistance localStorage (best score, coins, boosters, settings)
-- Vérifier les 3 chemins de la checklist senior :
-  - (a) 1ère ouverture (storage vide)
-  - (b) Joueur récurrent (storage rempli)
-  - (c) Edge case (offline, RAF interrompu, vibrate API absente)
-
-**Déploiement V1 (~15 min)**
-- Créer repo GitHub `land-lang-120/super-tetris` (ou rester dans le mono-repo Tetroid actuel)
-- Push initial
-- Cloudflare Pages → connect repo → build settings (Framework=None, Build command=empty, Output=`/`) → deploy
-- URL résultante : `https://super-tetris.pages.dev`
-
-**Polish & QA (~3-4h post-V1)**
-- Audit senior systématique (3 chemins + ghost-refs + cleanup RAF)
-- Particules canvas au clear de ligne
-- Audio (Web Audio API : musique fond + 8 effets sonores : drop, lock, clear, tetris, level-up, game over, button, combo)
-- Haptics (`navigator.vibrate()` court au lock, long au tetris/level-up)
-- i18n : extraction des strings + ajout EN (FR par défaut)
-- Tests perf : Lighthouse mobile 3G, low-end Android (cible : >85 score)
-
-**Features V2 (post-launch)**
-- Mode Sprint (objectif 40 lignes en moins de temps)
-- Mode Ultra (score max en 2 min)
-- LeaderboardScreen avec Firebase Firestore
-- ShopScreen + Google Play Billing
-- Quêtes journalières / hebdo
-- Skins de pièces (cosmétiques)
-
-**Soumission Google Play (après V1 testée + Wise opérationnel)**
-- Génération AAB via PWABuilder.com (input URL Cloudflare Pages)
-- Politique de confidentialité : `https://clonex.pages.dev/privacy` (déjà en ligne)
-- Page de support : `https://clonex.pages.dev/support` (déjà en ligne)
-- Site officiel app : `https://clonex.pages.dev/super-tetris` (à créer ou pointer vers super-tetris.pages.dev)
-- Screenshots Play Store : 5-8 captures portrait 1080x1920 (loading + home + game + clear ligne + gameover + roue + settings)
-- Icône 512x512 (à exporter depuis icon-512.svg) + bannière feature 1024x500
-- Description FR/EN + ASO keywords (tetris, puzzle, mobile game, etc.)
-- Soumission Play Console (24-72h revue Google)
-
----
-
-## 0bis. 🎯 CHECKLIST SENIOR (À RELIRE SYSTÉMATIQUEMENT)
-
-> ⚠️ **Reprise de la checklist Byer** — la même rigueur s'applique à toutes les apps du portefeuille CloneX. Audit méticuleux, non négociable.
-
-**Avant chaque modification structurelle :**
-1. **Grep ghost-refs** : avant de supprimer une variable/state/ref/import, lancer `grep -rn "<varname>" src/` pour identifier TOUTES les références.
-2. **Walk-through render path** : pour chaque écran touché, tracer mentalement chaque accès `props.*` / `state.*` ligne par ligne sur le code post-modification. Identifier les paths qui pourraient recevoir `undefined` / array vide / null.
-3. **Test des 3 chemins** :
-   - **(a)** 1ère ouverture (localStorage vide, pas de session, pas de score précédent)
-   - **(b)** Joueur récurrent (localStorage rempli, score historique, items consommés)
-   - **(c)** Edge case (offline, RAF interrompu par mise en arrière-plan, vibrate API absente)
-
-**Avant chaque commit / push :**
-4. **Lecture du diff** : `git diff --stat` puis lire chaque fichier modifié en entier. Pas de push à l'aveugle.
-5. **Vérif handlers** : tout bouton/action ajouté DOIT avoir un `onClick` (ou `onTouchStart`) fonctionnel. Pas de "j'ai vu le SVG je suppose que ça marche".
-6. **Audit cumulatif** : début de chaque nouvelle phase = grep + vérif que les phases précédentes tiennent toujours (boosters consommables, score persisté, etc.).
-
-**Après chaque deploy :**
-7. **Smoke test live** : `curl /bundle.js?v=N | grep -c <feature_marker>` >0 ET `grep -c <removed_var>` =0 sur le live.
-8. **Tests utilisateur** : ne JAMAIS dire "prêt à tester" sans avoir mentalement simulé une partie complète sur le code post-deploy.
-
-**Pour les data structures persistées (`localStorage`) :**
-9. **Versionnage du schéma** : chaque `localStorage.getItem` accepte un format old/new (rétrocompat) ou migre automatiquement. Pas de crash si l'utilisateur a une ancienne version installée.
-10. **Optional chaining systématique** sur les accès aux objets persistés (`saved?.boosters?.freeze ?? 0`, `lb?.[0]?.score || 0`).
-
-**Pour les boucles de jeu (Canvas + RAF) :**
-11. **Cleanup** : tout `requestAnimationFrame` posé doit avoir un `cancelAnimationFrame` correspondant dans le `useEffect` cleanup. Pas de double-RAF qui mange CPU.
-12. **Pause / Resume** : `document.visibilitychange` doit pauser le jeu quand l'app passe en arrière-plan. Sinon batterie + score irréaliste si l'utilisateur revient 3h plus tard.
-13. **Frame skip** : si le delta time dépasse 100ms, on cap (sinon une grosse glitch fait sauter 10 niveaux de difficulté).
-
-> 💡 Cette checklist est la dette technique à payer après chaque audit foiré.
-> Elle est **commune à Byer, Super Tetris, et toutes les futures apps CloneX**.
-
----
-
-## 0quater. 🐛 BUGS POST-V1.11 — Diagnostic + checklist senior par bug
-
-> ✅ **STATUT 2026-05-04 : 3/4 bugs RÉSOLUS en v1.13** (par Claude GitHub App,
-> branche `claude/super-tetris-byer-dev-YRgBg` mergée dans main, déployée
-> en prod). Reste BUG-BYER-1 à traiter dans le repo Byer (cahier séparé).
->
-> Diagnostic original : Pino a installé l'APK et identifié 4 bugs après
-> 30s de test. Frames extraites des vidéos test. Plan d'attaque rigoureux
-> avec validation entre chaque étape.
-
-### 🐛 BUG-ST-1 : Pièces FLOUES au démarrage de partie ✅ FIXÉ v1.13
-**Solution finale** : revert au sizing fixe `width=400 height=800` (comme v1.11
-qui marchait). La CSS (aspectRatio 1/2 + height 100%) gère l'upscale visuel
-proprement. La tentative v1.12 (useLayoutEffect + dynamic sizing DPR) mesurait
-parfois un parent à 0px → backing-store ridicule = flou. KISS principle gagne.
-**À VALIDER PAR PINO** sur APK v1.13.
-
----
-**Symptôme** : Les premières pièces apparaissent floues/pixelisées (pas en 3D).
-Après quelques secondes elles deviennent nettes.
-**Cause root** : Le canvas démarre avec `width={1} height={1}` (pour éviter le flash 0×0).
-Le ResizeObserver met du temps à kicker → premier render avec backing store 1×1 → upscale énorme = flou.
-
-**Checklist senior fix** :
-- [ ] Étape 1 : Set la taille du canvas IMMÉDIATEMENT au mount (avant 1er render React)
-  → utiliser un useLayoutEffect (sync) au lieu de useEffect (async)
-- [ ] Étape 2 : Calculer la taille initiale via `cv.parentElement.getBoundingClientRect()`
-- [ ] Étape 3 : Vérifier que `cv.width` et `cv.height` sont bien set AVANT le 1er drawBoard
-- [ ] Étape 4 : Mesure de succès = pas de pièce floue à la 1ère frame (test : démarrer 10 parties)
-
-### 🐛 BUG-ST-2 : Pièces qui DISPARAISSENT à la rotation ✅ FIXÉ v1.13
-**Cause root identifiée** : double-tap mobile = HOLD. Quand l'utilisateur
-tape vite pour rotater, le 2ᵉ tap est interprété comme HOLD → la pièce
-courante est REMPLACÉE par celle en hold (ou null la 1ère fois) → impression
-de "disparition alternée".
-**Solution finale** : suppression complète du double-tap=hold sur mobile.
-Tap = rotate uniquement. Hold reste accessible via clavier (Shift / C) et
-mini-canvas HOLD du HUD.
-**À VALIDER PAR PINO** sur APK v1.13.
-
----
-**Symptôme** : Quand l'utilisateur tourne une pièce, elle disparaît parfois (intermittent, alterné).
-"Si la 1ère disparaît, la suivante reste, puis celle d'après disparaît."
-**Causes potentielles** (à investiguer) :
-- (A) `rotatePiece()` mute G.piece à un nouvel objet sans le re-render
-- (B) Race condition entre setTick et le rendu canvas (re-render avec la pièce déjà locked)
-- (C) Le test `isGameOver(grid, piece)` après rotation considère faussement game over
-- (D) Le `lockPieceFlow` après rotation+collision spawn une nouvelle pièce qui passe à travers
-
-**Checklist senior fix** :
-- [ ] Étape 1 : Reproduire le bug en local (rotater 20× rapidement → enregistrer le comportement)
-- [ ] Étape 2 : Logger chaque rotation : avant/après, kick utilisé, succès/échec
-- [ ] Étape 3 : Identifier la cause précise (A/B/C/D) via les logs
-- [ ] Étape 4 : Fix ciblé + test (rotater 50× → 0 disparition)
-- [ ] Étape 5 : Mesure de succès = vidéo de 60s sans aucune disparition
-
-### 🐛 BUG-ST-3 : VFX BOOSTERS absents ✅ FIXÉ v1.13
-**Solution finale** : `src/game/booster-fx.js` créé (port FIDÈLE de
-`tetroid-pro/js/boosters.js` lignes 121-442) avec les 4 systèmes VFX :
-- ⚡ LASER : flash rouge global + 4 beams qui balaient + étincelles
-- ☄️ METEOR : 10 météorites avec trails orange + boules brillantes 3D
-- ❄️ FREEZE : voile bleu + flocons + cristaux sur les bords
-- 🧲 MAGNET : 5 vagues violettes concentriques
-
-Architecture : logique IMMÉDIATE (pas de setTimeout 2.3s comme v1.12 qui
-causait race conditions) + VFX décoratif joue son animation en parallèle.
-Bonus : sons spécifiques par booster ajoutés dans audio.js (boosterFreeze /
-boosterLaser / boosterMeteor / boosterMagnet).
-**À VALIDER PAR PINO** sur APK v1.13.
-
----
-**Symptôme** : Quand on active un booster, on voit l'effet logique (lignes effacées, etc.)
-mais PAS les VFX visuels comme dans Tetroid (laser beams qui balayent, météorites qui tombent,
-flocons de neige pour freeze, vagues violettes pour magnet).
-**Cause root** : Quand j'ai porté les boosters de Tetroid, j'ai porté la LOGIQUE
-(applyLaser, applyMeteor, etc.) mais PAS les VFX (laserBeams, meteorites, freezeFlakes,
-magnetWaves) qui sont définis dans `tetroid-pro/js/boosters.js` lignes 121-442.
-
-**Checklist senior fix** :
-- [ ] Étape 1 : Lire les 4 systèmes VFX Tetroid : `laserBlast()`, `launchMeteor()` + `updateMeteors()` + draw, `spawnFreezeEffects()` + `updateFreezeEffects()` + `drawFreezeEffects()`, `spawnMagnetWaves()` + `updateMagnetWaves()` + `drawMagnetWaves()`
-- [ ] Étape 2 : Créer un module `src/game/booster-fx.js` avec ces 4 systèmes (state + update + draw)
-- [ ] Étape 3 : Intégrer dans le game loop GameScreen (update à chaque frame)
-- [ ] Étape 4 : Intégrer dans render.js (draw après le board)
-- [ ] Étape 5 : Mesure de succès = activer chaque booster → voir VFX identique à Tetroid
-
-### 🐛 BUG-BYER-1 : Mode sombre incomplet + textes/icônes inversés
-🚧 **À TRAITER DANS REPO BYER** (`Universal-Tech/apps/byer/CAHIER-CHARGES.md`).
-Cf. workflow imposé par Pino : "1 app à la fois, fix tout en bloc, tester,
-puis app suivante". → PHASE B après validation Pino de la PHASE A (ST v1.13).
-
----
-**Symptômes** :
-- Mode sombre ne va pas jusqu'au fond (zone du bas reste claire)
-- Textes blancs sur boutons rouges deviennent NOIRS (illisibles)
-- Headers rouges deviennent rose pâle
-- Images peuvent être assombries
-**Cause root** : Le dark mode utilise `filter: invert(1.0) hue-rotate(180deg)` sur le body.
-Cette approche INVERSE TOUT, y compris :
-- Textes blancs sur boutons (deviennent noirs)
-- Couleurs vives type rouge brand (deviennent pastel)
-- Images (contre-inversées mais imparfait selon contenu)
-
-C'est une dette technique du choix d'implémentation initial. Solution propre = vraie palette CSS sombre.
-
-**Checklist senior fix** :
-- [ ] Étape 1 : Identifier toutes les CSS vars utilisées dans Byer (couleurs hardcodées vs vars)
-- [ ] Étape 2 : Définir une palette sombre vraie (--bg, --surface, --text, --text2, etc.) en CSS vars sous `html.byer-dark`
-- [ ] Étape 3 : Remplacer toutes les couleurs hardcodées dans les composants par les CSS vars
-- [ ] Étape 4 : Retirer le filter:invert (root cause de l'inversion stupide)
-- [ ] Étape 5 : Vérifier que la zone du bas (bottom nav bar) prend bien la couleur du body en dark
-- [ ] Étape 6 : Mesure de succès = screenshot dark mode avec textes blancs sur boutons rouges, fond uniforme partout
-
----
-
-## 0ter. ✅ AUDIT CHECKLIST SENIOR — état v1.9 (3 mai 2026)
-
-> Audit méthodique des 13 règles ci-dessus appliquées au code v1.9 actuel.
-> Légende : ✅ OK · ⚠️ Partiel · ❌ Non fait · 🔜 Plan d'action
-
-### 1. Grep ghost-refs ✅
-- `LINES` retiré du HUD (v1.5) → grep confirmé 0 ref orpheline
-- `HOLD` retiré du HUD (v4) → SCORE l'a remplacé proprement, pas de ghost
-- `MiniCanvas` (ancien composant interne) supprimé → 0 ref restante
-- Styles `heroRow / heroBlock / heroLabel / scoreValue / timeValue` retirés en bloc → 0 ref orpheline
-- Variables `controlsRow / timerPill` supprimées et remplacées par `timerOverlay / controlsOverlay` → vérifié
-
-### 2. Walk-through render path ✅
-- `App.jsx` → `currentScreen` route vers 7 écrans avec optional chaining systématique sur `profile` et `settings`
-- `GameScreen.jsx` → toutes les références à `G` (gameRef.current) sont vérifiées par `if (!G || G.gameOver) return`
-- `HUD.jsx` → tous les fields acceptent undefined via fallback (`level || 1`, `combo > 0 ? "×" + combo : "×0"`, `formatNum(score)` retourne "0" si NaN)
-- `BoosterButtons.jsx` → `inv = inventory || {}` et `count = inv[b.id] ?? 0` (fallback partout)
-
-### 3. Test des 3 chemins ⚠️
-- **(a) 1ère ouverture (storage vide)** : ✅ DEFAULT_PROFILE injecté par useStorage avec defaults solides. Migration v1→v2 vérifiée (reset boosters à 30).
-- **(b) Joueur récurrent** : ✅ localStorage cache mémoire dans useStorage évite reads répétés. Boosters/score/XP correctement persistés entre parties.
-- **(c) Edge cases** : ⚠️ partiel
-  - Offline : SW cache l'app entière → ✅ OK
-  - RAF interrompu (visibilitychange) : ✅ géré dans useGameLoop
-  - vibrate API absente (iOS) : ✅ try/catch dans haptics.js
-  - AudioContext suspended : ✅ FIX v1.7 (resume forcé à chaque tone)
-  - LocalStorage bloqué (mode privé Safari) : ⚠️ safeRead/safeWrite catch erreurs mais ne notifient pas l'utilisateur → 🔜 toast warning à ajouter
-
-### 4. Lecture du diff ✅
-- Tous les commits récents (v1.4 à v1.9) ont été review fichier par fichier avant push
-- Aucun "git add ." sauvage : add ciblé sur les fichiers modifiés
-
-### 5. Vérif handlers ✅
-- Boosters : tous les `onUse` connectés à `activateBooster(id)` qui appelle la vraie logique STBoosters.applyXxx
-- Boutons pause/accueil : `onClick={() => setPaused(p => !p)}` et exit avec confirm
-- NEW GAME : `onClick` pré-warm AudioContext + navigate
-- Settings toggles : Toggle a un vrai `onChange={onChange}` qui propage à `update({ ... })`
-
-### 6. Audit cumulatif ✅
-- Vérifié à chaque batch : les phases précédentes (boosters consommables, score persisté, settings) tiennent toujours
-- v1.9 : ajouté le test que `applyMagnet` retourne aussi `linesCleared` qui s'accumule dans `G.linesTotal` → ne casse pas le scoring existant
-
-### 7. Smoke test live ✅
-À chaque deploy : `curl bundle.js | grep -c <feature>` >0 ET `grep -c <removed>` =0
-- v1.9 : `grep "applyGravity" bundle.js` → confirmé présent
-- `grep "MUSIC_SEQ" bundle.js` → 20 occurrences confirmées
-- `grep "freeze: 30" bundle.js` → DEFAULT_PROFILE migré
-
-### 8. Tests utilisateur ⚠️
-- **Bug v1.8 : "Cannot access paused before init"** non détecté avant push → fix v1.8.1
-- Leçon : les useEffects qui dépendent de useState locales doivent IMPÉRATIVEMENT être déclarés APRÈS leur déclaration (limites linter ESLint manquant ici)
-- 🔜 Ajouter un eslint plugin react-hooks pour catcher ce genre d'erreurs avant push
-
-### 9. Versionnage du schéma ✅
-- `useStorage.js` SCHEMA_VERSION = **2** (v1.9)
-- Migration v1→v2 implémentée : reset boosters à 30 (test Pino)
-- Migration future v2→v3 : prévoir un slot pour ajouter `wheelLastFree` ou `referrals` sans casser
-
-### 10. Optional chaining systématique ✅
-- `profile?.boosters?.freeze ?? 0` partout dans BoosterButtons et activateBooster
-- `safe = profile || {}` puis `safe.coins ?? 0` dans HomeScreen
-- Toutes les valeurs en provenance de localStorage sont fallback-safe
-
-### 11. Cleanup RAF ✅
-- `useGameLoop` : `cancelAnimationFrame(rafIdRef.current)` dans cleanup useEffect
-- `STMusic.stop()` clearInterval dans cleanup useEffect au unmount de GameScreen
-- `STParticles.clear()` au mount/unmount de GameScreen (pas de fuite particules entre 2 parties)
-- Listeners audio resume : auto-désinscription dès AC running (v1.7 fix)
-
-### 12. Pause / Resume ✅
-- `useGameLoop` accepte `active` prop : pause auto sur `document.visibilitychange` ou `onBlur`
-- `paused` state dans GameScreen → `STMusic.stop/start` synchronisé
-- Game over → STMusic.stop() pour libérer le scheduler
-
-### 13. Frame skip ✅
-- `useGameLoop` : `dt = Math.min(deltaMs, 100)` pour cap les gros lags (sinon partie tronquée si l'utilisateur revient après un sleep)
-- Pas de logique de gameplay basée sur `now()` directement, tout passe par `deltaMs` capé
-
----
-
-### 🔜 PROCHAINES PRIORITÉS (post-pause Pino)
-
-**Polish v1.10 (1-2h)** :
-1. Test utilisateur complet de v1.9 (Pino : valider que LASER détruit bien 4 lignes + blocs tombent, METEOR 10 colonnes touchées, MAGNET cascade qui fait des lignes)
-2. Tutorial first-launch (2-3 écrans avec swipe : "Tu fais les lignes" + "Tap les bonbons pour booster")
-3. Animation level-up plein écran (overlay flash + texte "LVL X" + sound levelUp)
-4. Animation game over plus dramatique (zoom out + shake + fade)
-
-**Monétisation V2 (J+7)** :
-5. Shop fonctionnel (packs achetables, mock IAP avant Google Play Billing réel)
-6. Coffre quotidien + missions journalières (rétention)
-7. AdMob intégration (rewarded continue après game over + free booster toutes les 4h)
-
-**Social V2 (J+14)** :
-8. Système de parrainage (code unique + lien magique + récompenses parrain/filleul)
-9. Leaderboard mondial Firebase (top 100 + classement local par pays)
-10. Partage du score (sheet natif WhatsApp/Twitter/etc.)
-
-**International V2 (J+21)** :
-11. i18n : extraction strings + 12 langues (FR ✅ EN partiel + DE/ES/PT/RU/ZH/KO/AR/HI/NL/SV)
-
-**Tournois V3 (après threshold $10K revenus nets atteint)** :
-12. Modèle C : sweepstakes sponsorisé, free entry, pool 100 max, journalier/hebdo/mensuel
-13. Validation pays par pays (US "NO PURCHASE NECESSARY", CM déclaration MINFI éventuelle, UE 18+)
-
-**Soumission Play Store (parallèle au polish)** :
-14. PWABuilder.com → générer AAB depuis l'URL prod
-15. Play Console : créer fiche (nom, description FR/EN, screenshots, privacy URL clonex.pages.dev/privacy)
-16. Soumission Closed Testing → Open Testing → Production (3-7 jours revue Google)
 
 ---
 
 ## 1. Vision
 
-**Super Tetris** est la version **premium et complète** de Tetroid (existant). Reproduit fidèlement l'expérience visuelle et UX du **Tetris® officiel** distribué sur Google Play (par Playstudios), tout en intégrant des innovations propres :
-- 4 boosters consommables (freeze, laser, météore, magnet)
-- Roue de la fortune quotidienne
-- Système de rangs (8 niveaux)
-- Classement mondial Firebase
-- Pubs récompensées pour relancer la partie après un game over
-- Missions journalières / hebdomadaires
-- 12 langues localisées
+Le Tetris officiel SRS avec :
+- **Gameplay officiel** (7 pièces, T-spin, combo, back-to-back, hard drop)
+- **4 boosters fun** (Freeze, Laser, Meteor, Magnet)
+- **Roue de la fortune** quotidienne
+- **8 rangs** (Recrue → Grand Maître)
+- **Musique iconique** (Korobeiniki recréée)
+- **100% gratuit, hors ligne, sans pubs**
 
-L'objectif est un produit **"polished mobile casual game"** indistinguable de l'app officielle en termes de finition graphique, déployable sur Google Play Store via PWABuilder.
+Tagline : *"Le Tetris emblématique avec 4 boosters fun et la musique iconique !"*
 
----
+## 2. Périmètre fonctionnel V1.13
 
-## 2. Personas
+### 2.1 Gameplay
+- 7 pièces classiques (I, O, T, S, Z, J, L)
+- Système de rotation SRS avec wall-kicks (officiel)
+- Hold pour mettre une pièce de côté
+- Ghost piece pour viser parfaitement
+- Hard drop (×2 pts/ligne) + soft drop (×1 pt/ligne)
+- T-spin avec bonus (jusqu'à 1600 × niveau)
+- Combo en cascade + back-to-back (×1.5)
+- Niveau augmente toutes les 10 lignes (vitesse +)
 
-### 2.1 Joueur casual (cible principale, 80%)
-- Joue 5-15 min en transport, pause déj, soir avant dodo
-- Cherche défi rapide + récompenses visuelles
-- Peu enclin à l'achat, mais regarde une pub pour relancer si bon score
-- Veut voir sa progression (rang, score, classement local)
-
-### 2.2 Joueur compétitif (15%)
-- Joue 30 min — 2h
-- Cherche record perso + classement mondial
-- Maîtrise les techniques (T-spin, hard drop, hold)
-- Achète parfois des packs de boosters pour défier ses limites
-
-### 2.3 Whale / supporter (5%)
-- Achète régulièrement des packs cosmétiques + boosters
-- Premium pass éventuel (V2)
-- Source principale du revenu de l'app
-
----
-
-## 3. Périmètre fonctionnel
-
-### 3.1 Modes de jeu
-- **Marathon** (par défaut) : niveaux 1 → 20+, vitesse croissante, score cumulé
-- **Sprint** (V2) : viser X lignes en temps minimum
-- **Ultra** (V2) : score max en 2 min
-- **VS** (V2) : multijoueur asynchrone via Firebase
-
-### 3.2 Mécaniques de base (parité Tetris officiel)
-- 7 pièces (I, O, T, S, Z, J, L) avec couleurs canoniques
-- Système de **bag** (chaque pièce apparaît 1× tous les 7 tirages)
-- **Hold** (échanger la pièce courante avec une réserve, 1× par pièce)
-- **Ghost piece** (silhouette d'atterrissage)
-- **Hard drop** (slam) + **soft drop** (descente accélérée)
-- **Rotation SRS** (Super Rotation System) avec wall-kicks
-- **T-spin detection** (bonus score)
-
-### 3.3 Boosters (consommables, conservent entre parties)
-| Booster | Effet | Acquisition |
-|---|---|---|
-| ❄️ **Freeze** | Stop la chute pendant 3s | Roue / shop / récompense quotidienne |
-| ⚡ **Laser** | Détruit la ligne courante | Roue / shop / niveau-up |
-| ☄️ **Meteor** | Détruit 5 cellules aléatoires | Roue / shop |
-| 🧲 **Magnet** | Attire les pièces dans les trous | Roue / shop / quête |
-
-### 3.4 Roue de la fortune
-- 1 spin gratuit toutes les 24h
-- Récompenses : pièces or, boosters, multiplicateurs XP, packs cosmétiques
-- Spin payant possible (50 pièces or)
-
-### 3.5 Système de récompenses
-- **Pubs récompensées** (rewarded ads) :
-  - **Continue** après game over (1× par partie, +1 vie)
-  - **Free booster** (1× par mode booster, toutes les 4h)
-  - **Boost XP** (×2 sur la prochaine partie)
-- **Missions journalières** : "Faire 5 lignes", "Atteindre 10 000 pts", etc.
-- **Coffre quotidien** : ouvre tous les jours pour bonus surprise
-- **Quêtes hebdo** (V2)
-
-### 3.5bis Système de compétitions / tournois — MODÈLE FINAL (décidé 2026-05-03)
-
-> ✅ **Décision arrêtée par Pino le 2026-05-03** : modèle "sweepstakes sponsorisé"
-> à threshold (modèle C ci-dessous). Les modèles A et B sont conservés comme
-> historique de réflexion mais NE seront PAS implémentés.
-
-#### Modèle C — Sweepstakes sponsorisé à threshold (RETENU ✅)
-
-**Mécanique :**
-- **Inscription au tournoi : GRATUITE** (aucun paiement requis pour participer)
-- Cagnotte alimentée par **30% des revenus nets cumulés de Pino** (après déduction du % Google Play / Apple Store)
-- **Threshold d'activation** : la fonctionnalité "Compétition" n'apparaît dans l'app que lorsque **revenus nets cumulés ≥ 10 000 USD**
-  - Avant ce seuil, l'option n'existe pas (l'utilisateur ne voit pas de tournoi)
-  - À partir du seuil, le bouton "🏆 Tournois" s'active sur HomeScreen
-  - Entre chaque tournoi, recalcul du % de revenus net disponible pour la prochaine cagnotte
-- Pools : **100 joueurs max** par tournoi (création automatique de nouveaux pools si demande)
-- Cycles : **journalier**, **hebdomadaire**, **mensuel** (selon cagnotte disponible)
-
-**Modèle économique global :**
-- 100% du revenu Pino vient de :
-  - 📺 **Pubs récompensées** (rewarded ads) — entre 0,02-0,10 USD par vue
-  - 💳 **Achats intégrés** (packs de pièces / boosters / Premium Pass)
-  - 🎫 **Premium Pass** mensuel à $2,99 (sans pubs + bonus quotidien + accès tournois VIP)
-- Une fois la commission Google déduite (15-30% selon type) → calcul du **revenu net**
-- 30% du revenu net → réservé à la cagnotte des prochains tournois (pool commun, redistribué progressivement)
-- 70% du revenu net → réinvestissement (dev, marketing) + bénéfice Pino
-
-**Distribution des gains au sein d'un pool :**
-- **Pool < 100 joueurs** (cagnotte plus petite) : top 10 partagent (40% / 25% / 15% / 8% / 5% / 3% / 2% / 1% / 0,5% / 0,5%)
-- **Pool 100-1000** : top 20 partagent (curve plus douce)
-- **Pool > 1000** : top 30 partagent + petits lots de consolation
-- Distribution **automatique** via Notch Pay (pour CM) ou autres rails par pays
-
-**Conditions d'éligibilité (pour participer au tournoi) :**
-- Cumul minimum de **10 heures de jeu** sur Super Tetris
-- Best score >= **50 000 pts** (prouve que c'est un joueur sérieux, pas un bot)
-- Compte vérifié (email confirmé)
-- Avoir lu et accepté les conditions de participation
-- Pays autorisé (vérifier liste pays par pays — sweepstakes laws variables)
-- 18+ recommandé (à confirmer par juridiction)
-
-**Avantages business :**
-- ✅ **Aucun risque financier pour Pino** : la cagnotte est un % de ce qu'il a DÉJÀ gagné
-- ✅ **Aucune licence requise** : ce n'est pas un jeu d'argent (no entry fee = sweepstakes légal)
-- ✅ **Marketing extrêmement puissant** : "Joue gratuitement à Super Tetris, gagne du cash réel chaque semaine !"
-- ✅ **Boucle de rétention parfaite** : pour participer, il faut jouer 10h+ → l'utilisateur s'engage → temps de jeu = revenus pubs + IAP
-- ✅ **Validation Google Play standard** (sweepstakes ≠ gambling tant qu'inscription gratuite)
-- ✅ **Boucle vertueuse** : plus de joueurs → plus de revenus → plus de cagnotte → plus d'attrait → plus de joueurs
-
-**⚠️ Nuances légales à valider :**
-- 🇺🇸 **USA** : afficher "NO PURCHASE NECESSARY" en évidence (sweepstakes laws) — déjà OK car inscription gratuite
-- 🇨🇲 **Cameroun** : déclaration éventuelle au MINFI pour distribution de gains réguliers (à vérifier — petit montant peut être OK)
-- 🇪🇺 **UE** : 18+ obligatoire si argent réel + transparency conditions
-- Toutes juridictions : Terms of Service clairs + équité du tirage prouvable + KYC pour payouts > $X
-
-#### Modèles ARCHIVÉS (non retenus)
-
-**Modèle A — RMG entry fee** (initialement proposé) : nécessitait licence pari, refusé par les stores sans licence. **Trop risqué et lent.**
-
-**Modèle B — Sponsored sans cash réel** (j'avais recommandé) : pas de cash → moins viral, moins motivant. Pino a préféré C qui combine légalité ET cash gain réel.
-
-→ **Modèle C = best of both worlds**.
-
-#### Modèle A — Real Money Game (RMG) "compétition payante" (proposé par Pino 2026-05-03)
-
-**Mécanique :**
-- Inscription au tournoi : **2,99 USD par participant**
-- Pool : **100 joueurs max** par tournoi
-- Cycle : **journalier** + **hebdomadaire** + **mensuel**
-
-**Modèle économique :**
-- 30% du total des inscriptions → **commission Byer/CloneX**
-- 70% → **cagnotte distribuée aux gagnants**
-- Distribution :
-  - Pool de 100 joueurs (peu de monde) → top 10 partagent
-  - Pool de +3 000 000 joueurs → top 20-30 partagent
-  - Cagnotte journalière → distribution quotidienne automatique
-  - Cagnotte hebdomadaire → top X de la semaine
-  - Cagnotte mensuelle → top X du mois (gros prix grand pool)
-
-**Conditions d'éligibilité :**
-- Cumul minimum d'**heures de jeu** (ex: 10h)
-- Cumul minimum de **points** (ex: best score > 50 000)
-- Objectif : pousser les joueurs à rester sur l'app (rétention)
-
-**⚠️ Contraintes légales et techniques (À VALIDER AVANT DÉV) :**
-
-| Aspect | Cameroun | Google Play | Apple App Store |
+### 2.2 Boosters
+| Booster | Effet | Stock départ V1 | Coût coins |
 |---|---|---|---|
-| Statut légal | Considéré comme **loterie / pari** | Politique **Real Money Gaming** stricte | Politique **In-App Gambling** très stricte |
-| Licence requise | **Licence MINFI** ou via opérateur agréé (PMUC, etc.) | Pays par pays — soumission spéciale RMG | Souvent refusé sauf si opérateur licencié reconnu |
-| Vérification utilisateur | KYC obligatoire (18+ + ID + adresse) | Idem | Idem |
-| Conformité | Anti-blanchiment, fiscalité gains | Submitted to RMG flow (au lieu du flow normal) | Apple developer relations spécifique |
-| Risque d'app refusée | — | **Élevé** sans licence prouvée | **Très élevé** |
-| Délai de mise sur le marché | 6-12 mois (licence + KYC + infra) | 3-4 semaines de revue Google | 1-3 mois de revue Apple |
+| ❄️ Freeze | Ralentit la chute 15s (vitesse niveau 1) | 1 | 200 |
+| ⚡ Laser | Détruit 4 lignes basses + cascade | 1 | 300 |
+| ☄️ Meteor | 10 météorites détruisent le top | 0 | 400 |
+| 🧲 Magnet | Compresse + élimine trous | 0 | 500 |
 
-→ **Ce modèle nécessite obligatoirement** : licence pari/jeu + KYC stricte + comptabilité fiscale + audit + restrictions géographiques (uniquement pays où c'est légal).
+### 2.3 Roue de la fortune
+- 1 spin gratuit toutes les 24h
+- 8 segments : pièces or, boosters, multiplicateurs XP
 
-#### Modèle B — Tournois sponsorisés (gratuit + monnaie virtuelle, RECOMMANDÉ)
+### 2.4 Système de rangs
+🥉 Recrue → Bronze → 🥈 Argent → 🥇 Or → 💎 Diamant → 🔮 Maître → 👑 Légende → 🔥 Grand Maître
 
-**Mécanique :**
-- Inscription **gratuite** au tournoi (pas de cash réel)
-- Gains payés en **pièces virtuelles** (in-game currency)
-- Pièces virtuelles **non échangeables contre du cash réel** mais utilisables pour : boosters, skins, premium pass, etc.
-- Pools identiques (100 joueurs max, journalier/hebdo/mensuel)
+### 2.5 Mini-Jeu Bonus Publicitaire : "Block Crush" (Vague Montante & Cascades 3D)
 
-**Modèle économique :**
-- **Pubs récompensées** entre les tournois (l'utilisateur regarde une pub pour tenter sa chance plusieurs fois)
-- **Premium Pass mensuel** ($2.99/mois) :
-  - Pas de pubs
-  - Pièces virtuelles bonus quotidiennes
-  - Accès tournois VIP avec gros prix virtuels
-  - Skins exclusifs
-  - +50% XP
-- **Achats in-app de pièces virtuelles** (packs : 100 / 500 / 2000 pièces)
+> **Inspiration directe** : Vidéo de référence officielle `WhatsApp Video 2026-09-17 at 13.13.47.mp4`.  
+> **Rectification de conception majeure** : Remplacement de l'ancien modèle de labyrinthe statique à chenal par le gameplay réel : Tetris actif + Vague montante depuis le bas + Destructions en cascades dynamiques avec physique de désintégration 3D.
 
-**Avantages vs Modèle A :**
-- ✅ **Aucune licence requise** — légal partout, pas de vérification 18+
-- ✅ **Validation Google/Apple** = revue normale, pas de RMG flow
-- ✅ **Time to market : immédiat** (pas d'attente licence)
-- ✅ **ARPU plus élevé** (Brawl Stars, Clash Royale font des milliards avec ce modèle)
-- ✅ **Public plus large** (tous les pays, tous les âges 12+)
-- ✅ **Pas de risque pénal**
+#### 🎯 Concept & Boucle de Gameplay
+- **Accès & Déclenchement** : Accessible depuis l'écran d'accueil ou via une publicité récompensée (Rewarded Ad).
+- **Plateau & Tétrominos** :
+  - Grille verticale (10 colonnes × 20 rangées) avec rendu de blocs 3D isométriques néon.
+  - Pièces tétrominos aléatoires (I, O, T, S, Z, J, L) qui descendent depuis le haut.
+  - Contrôles complets : déplacement latéral, rotations SRS, descente douce (soft drop), frappe directe (hard drop), et ombre de projection (ghost piece).
+- **Le Mur Inférieur & La Vague Montante ("Rising Wave")** :
+  - Le bas du plateau est pré-rempli d'un relief irrégulier de blocs (mur en escalier avec encoches et cavités).
+  - Périodiquement (timer de jauge de vague progressif ou après un nombre de pièces posées), une **nouvelle rangée de blocs monte depuis le bas**, poussant toute la grille vers le haut.
+  - Chaque rangée montante contient des brèches / trous aléatoires (1 à 2 colonnes vides).
+  - **Ligne de danger (Top-out)** : Si les blocs montants ou empilés franchissent la ligne limite rouge au sommet de la grille avant d'être détruits → Défaite / Fin de la session bonus.
+- **Système de Destruction en Cascade Continue (CRUSH Domino)** :
+  - Lorsqu'un tétromino s'arrime et forme une ou plusieurs lignes horizontales pleines :
+    - **Explosion Voxel 3D** : Les blocs des lignes complètes se brisent en micro-cubes 3D projetés avec vélocité, rotation spatiale, gravité et étincelles lumineuses (60 FPS).
+    - **Effondrement gravitationnel** : Les blocs situés au-dessus des lignes détruites tombent sous l'effet de la gravité dans les espaces libérés.
+    - **Réactions en chaîne (Cascade Continuity)** : Si la chute de ces blocs reforme de nouvelles lignes pleines, celles-ci se détruisent immédiatement à leur tour.
+    - La cascade s'enchaîne de manière fluide tant que de nouvelles lignes sont créées consécutivement.
+  - **Multiplicateurs de Score & Audio** : Chaque cran de cascade consécutif multiplie les points (CRUSH ×2, TRIPLE CRUSH ×3, MEGA CASCADE ×5) avec accords de carillons synthétisés harmoniques ascendants via `window.STAudio`.
+- **Récompenses de Victoire / Survie** :
+  - Détruire la vague et survivre permet d'empocher le magot : +250 pièces d'or et des boosters exclusifs (Laser, Magnet, Freeze) injectés directement dans le profil du joueur.
 
-**Inconvénients :**
-- 🔸 Pas de gain direct cash pour les joueurs (mais la perception de "victoire" + FOMO marche très bien)
-- 🔸 Modèle "freemium" classique, doit être finement balancé pour conversion 1-3% en payeurs
+## 3. Architecture technique
 
-**Référence** : Brawl Stars (Supercell) ~3 milliards $ revenus, modèle 100% sponsorisé.
+### 3.1 Stack actuelle (V1.x)
+- **Front** : React 18 UMD CDN + JSX inline (Babel build → bundle.js)
+- **Build** : `node build.js` (concatène `src/` → `bundle.js`)
+- **Style** : CSS pur dans index.html
+- **Données** : `useStorage` hook → localStorage versionné (`st_*`)
+- **Audio** : Web Audio API (Korobeiniki recréée mélodie+basse+batterie)
+- **PWA** : manifest + service worker
+- **Cloudflare** : Workers Static Assets (`wrangler.jsonc`)
 
-#### Cas hybride (V3 long terme, après legal solide)
+### 3.2 Stack cible V2
+- React 18 + TypeScript + Vite
+- Backend Firebase (cloud sync scores + leaderboard mondial)
+- IAP via Google Play Billing (packs coins/boosters Premium Pass)
+- Mode multijoueur via WebSocket
 
-Si Byer/CloneX réussit avec le Modèle B et accumule du capital + équipe légale :
-- Fonder une entité licenciée (filiale "CloneX Gaming Ltd" basée Malta ou Curaçao, juridictions cash gaming friendly)
-- Obtenir licence MGA ou Curaçao eGaming
-- Lancer un produit séparé "CloneX Cash Tournaments" — uniquement dans les pays où c'est légal
-- Ce produit serait une app distincte, pas Super Tetris (pour éviter de cannibaliser la base utilisateurs casual)
+### 3.3 Schéma localStorage (`st_v` = 3)
+```
+st_v: number                  // version schema (3 = production V1)
+st_profile: {
+  level: number,
+  xp: number,
+  bestScore: number,
+  boosters: { freeze, laser, meteor, magnet },
+  wheelLastFree: number,      // timestamp dernier spin gratuit
+  totalGames: number,
+  rankId: string
+}
+st_settings: { sound, music, vibro, lang }
+st_history: Array<{score, date, level, lines}>
+```
 
-→ **Recommandation Claude** : commencer par **Modèle B** pour Super Tetris V1+V2 (lancement rapide, ROI prouvé, zéro risque). Modèle A à reconsidérer en V3+ après avoir atteint masse critique.
-
-### 3.5ter Système de viralité / parrainage (V2)
-
-> 🎯 **Objectif** (Pino 2026-05-03) : faire grandir la base utilisateurs par
-> invitation entre amis (acquisition organique gratuite, taux conversion
-> naturellement plus élevé que les pubs payantes).
-
-**Mécanique du parrainage :**
-- Chaque joueur reçoit un **code de parrainage unique** (ex: "JOSEPH-2X4") visible dans Profil
-- Lien magique partageable : `https://super-tetris.pages.dev/?ref=JOSEPH-2X4`
-- Quand un nouvel utilisateur installe l'app via ce lien :
-  - Il s'inscrit normalement
-  - À la 1ère ouverture, l'app détecte le `ref=` dans l'URL et l'enregistre dans son profil
-  - Le code parrain est validé après que le filleul a atteint un milestone (ex: niveau 5 + 1h de jeu cumulée → évite le farming)
-
-**Récompenses :**
-
-| Action | Récompense PARRAIN | Récompense FILLEUL |
-|---|---|---|
-| Filleul installe + niveau 5 | +100 pièces virtuelles + 1× freeze | +100 pièces virtuelles + 1× freeze |
-| Filleul atteint 1h de jeu | +50 pièces | +50 pièces |
-| Filleul achète 1er pack IAP | +500 pièces + 1× meteor | +200 pièces |
-| Filleul devient Premium Pass | +1 mois Premium gratuit | — (déjà Premium) |
-| Tous les paliers de récompense scalent | Sans limite (X filleuls = X récompenses) | One-shot par filleul |
-
-**Boutons partage natifs (intégrés au flow) :**
-- Profil → "Inviter des amis" → ouvre le sheet de partage natif (WhatsApp, SMS, Telegram, Twitter, etc.) avec le lien pré-rempli + texte attractif type "Viens jouer à Super Tetris avec moi ! 🎮 Tu gagnes 100 pièces + 1 booster à l'inscription via mon lien : [URL]"
-- Game Over Screen → bouton secondaire "📤 Partager mon score"
-- Roue de la fortune → bouton "Inviter pour 1 spin gratuit" (alternative au cooldown 24h)
-
-**Tracking technique :**
-- Table `referrals` : `parrain_user_id`, `filleul_user_id`, `code_used`, `created_at`, `validated_at`, `rewards_paid` boolean
-- Edge Function `referral-validate` : appelée à chaque milestone du filleul, distribue les récompenses
-- Anti-fraude : vérifier 1 IP/device par filleul, blacklist des comportements suspects
-
-**Affichage joueur :**
-- Profil → section "Parrainage" : code visible (copy 1-clic) + nb filleuls actifs + total récompenses gagnées via parrainage + bouton "Inviter"
-
-### 3.6 Achats intégrés (Google Play Billing)
-- **Pack petit** : 100 pièces or (~0,99€)
-- **Pack moyen** : 500 pièces or + 5 boosters mix (~4,99€)
-- **Pack large** : 1500 pièces or + 20 boosters mix + skin (~9,99€)
-- **Premium** (V2) : pas de pubs, +50% XP, skin exclusif (~19,99€)
-
-### 3.7 Système de rangs (XP cumulé)
-1. 🥉 RECRUE (0 — 1 000 XP)
-2. 🥉 BRONZE (1 000 — 5 000)
-3. 🥈 ARGENT (5 000 — 15 000)
-4. 🥇 OR (15 000 — 50 000)
-5. 💎 DIAMANT (50 000 — 150 000)
-6. 💎 MAÎTRE (150 000 — 500 000)
-7. 👑 LÉGENDE (500 000 — 1 000 000)
-8. 👑 GRAND MAÎTRE (1 000 000+)
-
-### 3.8 Classement mondial
-- Top 100 affiché localement
-- Pseudo + score + drapeau
-- Stocké sur Firebase Firestore (collection `super_tetris_scores`)
+### 3.4 Architecture du Mini-Jeu Bonus Block Crush
+- **`src/game/crush-engine.js`** : Moteur de simulation autonome (Game Loop, SRS, physique de vague montante, gestionnaire de grille, détection de lignes, gravité en cascade, système de particules et projection de voxels 3D).
+- **`src/components/BonusGameScreen.jsx`** : Composant React plein écran avec Canvas haute définition (DPR scaling), barre de progression de la prochaine vague, HUD arcade, retour haptique/sonore, contrôles tactiles (gestes et pavé virtuel) et modale de récompenses connectée à `useStorage`.
 
 ---
 
-## 4. Architecture technique
+## 📊 Snapshot 2026-05-05 — Audit sécurité + Play Store
 
-### 4.1 Stack
-- **Frontend** : React 18 (CDN UMD), Babel pré-transpilé via `build.js` (pattern hérité de Byer)
-- **Build** : `node build.js` → `bundle.js` (single file ES5+ pur, pas de Babel runtime)
-- **Game logic** : Canvas 2D pour le rendu de la grille
-- **State** : `useState` + `useReducer` React + `localStorage` pour persistence
-- **Audio** : Web Audio API (Tone.js optionnel pour la musique de fond)
-- **Haptics** : `navigator.vibrate()` (Android only, fallback silencieux)
-- **Backend (optionnel)** : Firebase Firestore pour leaderboard mondial
-- **Hébergement** : Cloudflare Pages (déploiement automatique sur push GitHub)
+### ✅ Audit sécurité (4 issues, 0 critique)
 
-### 4.2 Structure des fichiers
+| # | Sujet | Sévérité | Statut |
+|---|---|---|---|
+| **BUG-SEC-ST-1** | Account ID Cloudflare dans wrangler.jsonc | INFO | ⚠️ By design (les ID CF sont publics, le secret c'est le token) |
+| **BUG-SEC-ST-2** | Migration v1→v2 met boosters=30 (test Pino, pas prod) | HAUTE | ✅ **FIXÉ 2026-05-05** : schema v3, migration v2→v3 ramène à 1/1/0/0 si valeurs=30 |
+| **BUG-SEC-ST-3** | Quota localStorage non géré | BASSE | V1.x.1 |
+| **BUG-SEC-ST-4** | Pas de validation profile structure au load | BASSE | V1.x.1 |
 
-```
-super-tetris/
-├── index.html             # Entry HTML (charge bundle.js)
-├── manifest.json          # Manifest PWA
-├── sw.js                  # Service Worker (cache offline)
-├── build.js               # Script de build (Babel CLI → bundle.js)
-├── package.json           # Dépendances build
-├── CAHIER-CHARGES.md      # Ce fichier
-├── ARCHITECTURE.md        # Détails techniques
-├── PROGRESS.md            # Suivi du dev
-│
-├── icons/
-│   ├── icon-192.svg
-│   └── icon-512.svg
-│
-└── src/
-    ├── main.jsx           # Entry point React (mount root)
-    ├── App.jsx            # Composant racine (routing entre écrans)
-    │
-    ├── styles/
-    │   ├── variables.css  # Variables CSS (couleurs, radius, ombres)
-    │   └── global.css     # Reset + styles globaux + animations
-    │
-    ├── game/
-    │   ├── pieces.js      # Définition des 7 pièces + rotation SRS
-    │   ├── bag.js         # Système de sac (random shuffled)
-    │   ├── core.js        # Logique : collide, lock, clearLines, tspin
-    │   ├── scoring.js     # Calcul du score (single, double, T-spin, combo)
-    │   └── render.js      # Dessin du canvas (grille + pièces + ghost)
-    │
-    ├── components/
-    │   ├── LoadingScreen.jsx       # Splash 2-3s avec barre de progression
-    │   ├── HomeScreen.jsx          # Trophée + PLAY + Settings + Stats
-    │   ├── GameScreen.jsx          # HUD + Canvas + Boosters + Pause
-    │   ├── GameOverScreen.jsx      # Score + classement + RÉESSAYER + pub continue
-    │   ├── FortuneWheel.jsx        # Roue de la fortune (animation rotation)
-    │   ├── ShopScreen.jsx          # Achats intégrés (packs)
-    │   ├── LeaderboardScreen.jsx   # Top 100 mondial
-    │   ├── SettingsScreen.jsx      # Son, vibration, langue, thème
-    │   ├── BoosterButtons.jsx      # 4 boutons fixes en bas pendant le jeu
-    │   ├── HUD.jsx                 # Score, niveau, combo, next, hold
-    │   └── RewardedAd.jsx          # Wrapper pour pubs récompensées
-    │
-    ├── hooks/
-    │   ├── useGameLoop.js     # RAF loop avec cleanup + visibility pause
-    │   ├── useStorage.js      # Wrapper localStorage versionné
-    │   ├── useAudio.js        # Lazy-load audio + mute
-    │   └── useHaptic.js       # Vibrate avec fallback
-    │
-    └── lib/
-        ├── i18n.js            # 12 langues (FR, EN, DE, ES, PT, RU, ZH, KO, AR, HI, NL, SV)
-        └── analytics.js       # Plausible / Firebase Analytics (opt-in)
-```
+### ✅ Play Store : ASSETS PRÊTS
 
-### 4.3 Stockage (localStorage)
-
-| Clé | Contenu |
+| Asset | Statut |
 |---|---|
-| `st_v` | Version du schéma (pour migrations) |
-| `st_best` | Meilleur score |
-| `st_xp` | XP total cumulé |
-| `st_rank` | Rang actuel (calculé à partir de XP, mais cached) |
-| `st_boosters` | `{freeze:N, laser:N, meteor:N, magnet:N}` |
-| `st_coins` | Pièces or (monnaie virtuelle) |
-| `st_wheel_last` | Timestamp du dernier spin gratuit |
-| `st_chest_last` | Timestamp du dernier coffre quotidien |
-| `st_missions` | `[{id, progress, claimed}]` |
-| `st_settings` | `{sound:bool, vibro:bool, lang:'fr', theme:'dark'}` |
-| `st_pseudo` | Pseudo pour le classement |
-| `st_consents` | RGPD : consentement pubs personnalisées |
+| AAB signé (`Super Tetris.aab`) | ✅ Dans `super-tetris-package.zip` |
+| Keystore + passwords | ✅ `super-tetris-keystore-passwords.txt` |
+| Privacy + Support live | ✅ `/privacy` + `/support` |
+| Feature graphic 1024×500 | ✅ `play-store-assets/` |
+| 8 screenshots marketing 1080×1920 | ✅ `play-store-assets/screenshots/` |
+| `PLAY-STORE-LISTING.md` (FR + EN) | ✅ |
+| `PLAY-STORE-DEPLOYMENT-GUIDE.md` | ✅ |
+| Dossier Bureau Pino (`Super-Tetris-Play-Store/`) | ✅ |
 
-### 4.4 Flux de données React
+### 🚦 Statut Play Store
 
-```
-App.jsx
- └── état global (currentScreen, settings, profile)
-     │
-     ├── LoadingScreen (mount-once)
-     ├── HomeScreen (état : XP, rang, coins, boosters)
-     │    └── boutons onClick → setCurrentScreen
-     ├── GameScreen (état : grid, piece, score, level, paused)
-     │    ├── useGameLoop()
-     │    ├── BoosterButtons
-     │    ├── HUD
-     │    └── PauseModal
-     ├── GameOverScreen (props : score, rank, gainXP, gainCoins)
-     │    └── boutons : RÉESSAYER / Voir pub / Accueil
-     ├── FortuneWheel (modal overlay)
-     └── ShopScreen / LeaderboardScreen / SettingsScreen
-```
+⏳ En attente du déblocage du compte Pino (bug Google `OR_IDREH_04`).
+
+Dès déblocage, **Super Tetris est l'app la plus simple à pusher en premier** (100% offline, pas de backend, classification IARC simple = PEGI 3, pas de données collectées).
 
 ---
 
-## 5. Charte visuelle
+## 4. Roadmap
 
-### 5.1 Couleurs (cf. `variables.css`)
+### Patch v1.23.0 (2026-09-18) — Refonte Mini-Jeu Bonus Block Crush (Conformité Vidéo de Référence)
 
-| Token | Usage |
-|---|---|
-| `--bg1` `#0b1238` | Fond principal très sombre |
-| `--bg2` `#1a2a6e` | Fond cards / surfaces |
-| `--purple` `#7c3aed` | Accent principal UI |
-| `--gold` `#ffd23f` | Score, couronnes, monnaie |
-| `--green` `#22c55e` | CTA principal (PLAY, RÉESSAYER) |
-| `--piece-i/o/t/s/z/j/l` | Couleurs canoniques des 7 pièces Tetris |
+| ID | Zone | Décision / correction | Fichiers |
+|---|---|---|---|
+| **CRUSH-WAVE-LOGIC** | Gameplay Bonus | Remplacement complet de l'ancienne logique de couloir/goulotte par le vrai gameplay : tétrominos aléatoires SRS descendant du haut + vague de blocs qui monte du bas + menace de dépassement au sommet (top-out). | `crush-engine.js`, `BonusGameScreen.jsx` |
+| **CRUSH-CASCADE-FX** | Physique & Rendu | Implémentation du système de destruction en cascade continue (ligne pleine → explosion voxel 3D → effondrement par gravité des blocs au-dessus → détection et destruction en chaîne des nouvelles lignes formées → combos multiplicateurs). | `crush-engine.js` |
+| **CRUSH-UI-CONTROLS** | Ergonomie & Contrôles | Ajout des contrôles tactiles réactifs (touches arcade + gestes swipe/tap) et clavier desktop (flèches + espace hard drop), visualiseur de vague montante, score et modale de récompenses. | `BonusGameScreen.jsx` |
+| **DOCS-SPEC** | Cahier des charges | Intégration de la spécification détaillée du jeu bonus (section 2.5 et 3.4) au cahier des charges du projet. | `CAHIER-CHARGES.md` |
 
-### 5.2 Typographie
-- **Lilita One** (titres, logo, gros boutons) — style cartoon arrondi
-- **Bungee** (alternative pour effets graphiques)
-- **Nunito** 700-900 (corps, UI)
+### Patch v1.22.10 (2026-06-09) - Prime boosters persistante
 
-### 5.3 Effets signature
-- **Logo arc-en-ciel** : R rouge, T orange, R jaune, I vert, S violet — gradient text + ombre violette
-- **Boutons** : gradient avec ombre `0 4px 0 rgba(0,0,0,0.25)` (style "stamped 3D")
-- **Particules** : étoiles blanches scintillantes en fond pendant le jeu
-- **Pièces 3D** : gradient highlight top-left → ombre bottom-right
-- **Combo banner** : glissement bleu avec texte "COMBO X" depuis la gauche
+| ID | Zone | Decision / correction | Fichiers |
+|---|---|---|---|
+| STARTER-GRANT | Economie / onboarding | Une prime de depart applique au minimum 15 boosters de chaque type aux profils qui ne l'ont jamais recue, meme s'ils existaient deja avec des compteurs a zero | `App.jsx`, `useStorage.js` |
+| CACHE | Propagation mobile | Version `1.22.10`, cache SW `super-tetris-v1.22.10`, bundle query `?v=1.22.10` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
 
-### 5.4 Animations
-- Splash → fade + zoom du logo
-- Pièce qui se pose → flash blanc + particules
-- Ligne complétée → flash + slide + reset
-- Game over → shake écran + zoom out + fade out
-- Boost activé → glow autour du bouton + screen flash
+### Patch v1.22.9 (2026-06-09) - Onboarding boosters et raccourci boutique
 
----
+| ID | Zone | Decision / correction | Fichiers |
+|---|---|---|---|
+| START-BOOSTERS | Economie / onboarding | Les nouveaux joueurs demarrent avec 15 boosters de chaque type pour decouvrir tous les pouvoirs des les premieres sessions | `App.jsx` |
+| BOOSTER-EMPTY | Gameplay | Quand un booster arrive a zero, le compteur affiche un badge `+` au lieu de `0`; le tap ouvre la boutique pour racheter des packs | `BoosterButtons.jsx`, `GameScreen.jsx`, `App.jsx` |
+| CACHE | Propagation mobile | Version `1.22.9`, cache SW `super-tetris-v1.22.9`, bundle query `?v=1.22.9` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
 
-## 6. Roadmap MVP → Prod
+### Patch v1.22.8 (2026-06-09) - Alignement optique des fleches retour
 
-### MVP V1 (cible : 5 jours de dev intense)
-- ✅ Structure React + Babel build (squelette)
-- ⏳ LoadingScreen + HomeScreen
-- ⏳ GameScreen (canvas + game loop + 7 pièces + clearLines + score)
-- ⏳ GameOverScreen
-- ⏳ HUD complet
-- ⏳ Boosters (4 pouvoirs)
-- ⏳ FortuneWheel (modal + animation)
-- ⏳ Settings (son/vibro/langue/thème)
-- ⏳ Stats persistées (localStorage)
-- ⏳ Pubs récompensées (intégration Google AdMob via webview ou test mode pour V1)
-- ⏳ i18n FR + EN
-- ⏳ Soumission Google Play Store
+| ID | Zone | Decision / correction | Fichiers |
+|---|---|---|---|
+| BACK-OPTICAL | Navigation | Les glyphes des fleches retour sont remontes optiquement pour etre parfaitement centres dans leurs boites sur mobile | `ShopScreen.jsx`, `StatsScreen.jsx`, `SettingsScreen.jsx` |
+| CACHE | Propagation mobile | Version `1.22.8`, cache SW `super-tetris-v1.22.8`, bundle query `?v=1.22.8` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
 
-### V2 (post-launch, +30 jours)
-- Mode Sprint, Ultra
-- Leaderboard mondial Firebase
-- Premium pass (sans pubs)
-- 10 langues additionnelles
-- Système de quêtes hebdomadaires
-- Skins de pièces (cosmétiques)
-- Mode VS asynchrone
+### Patch v1.22.7 (2026-06-09) - Correctif opacite parametres
 
-### V3 (long terme)
-- Multiplayer temps réel
-- Tournoi avec récompenses cash
-- Discord/Twitch integration
-- Saisons (rangs réinitialisés tous les 3 mois)
+| ID | Zone | Decision / correction | Fichiers |
+|---|---|---|---|
+| SETTINGS-OPAQUE | Parametres | Le header et le contenu sont places au-dessus du decor, et les blocs de reglages utilisent un fond opaque pour eviter l'effet de page ternie sur mobile | `SettingsScreen.jsx` |
+| CACHE | Propagation mobile | Version `1.22.7`, cache SW `super-tetris-v1.22.7`, bundle query `?v=1.22.7` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
 
----
+### Patch v1.22.6 (2026-06-09) - Correctifs mobile post-test
 
-## 7. Conformité Google Play
+| ID | Zone | Decision / correction | Fichiers |
+|---|---|---|---|
+| UI-OPAQUE | Boutique + post-mort | Les cartes et panneaux critiques utilisent des fonds opaques afin que le decor de tetrominos reste strictement en arriere-plan | `ShopScreen.jsx`, `GameOverScreen.jsx` |
+| BACK-ALIGN | Navigation | Les fleches retour sont rendues dans un glyphe interne centre verticalement dans leur bouton | `ShopScreen.jsx`, `StatsScreen.jsx`, `SettingsScreen.jsx` |
+| PROFILE-SAVE | Classement/profil | Le validateur localStorage conserve `playerName`, `playerId` et `profileCreatedAt`; le pseudo reste disponible apres reload | `useStorage.js`, `App.jsx`, `StatsScreen.jsx` |
+| CACHE | Propagation mobile | Version `1.22.6`, cache SW `super-tetris-v1.22.6`, bundle query `?v=1.22.6` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
 
-### 7.1 Politique de confidentialité
-- Page partagée avec les autres apps : `https://clonex.pages.dev/privacy`
-- Mentionner : analytics, AdMob, Firebase Auth (futur), localStorage
+### ✅ Patch v1.22.5 (2026-06-08) — Consolidation UX / monétisation / loading
 
-### 7.2 Achats intégrés
-- Utiliser **Google Play Billing API** (V2 obligatoire)
-- Lister chaque pack dans Play Console → In-app products
-- Implémenter validation côté serveur (Edge Function future)
+| # | Besoin validé par Pino | Décision / Fix | Fichiers |
+|---|---|---|---|
+| DOC-STATE | Le cahier de charge doit rester la source de vérité projet | Ajout de cette section pour documenter les validations finales effectuées pendant la passe Codex | `CAHIER-CHARGES.md` |
+| LOADING-NEW | Détruire l'ancien splash qui flashait parfois avant React | Suppression complète de l'ancien `#st-boot` dans `index.html`; seul `LoadingScreen` reste actif | `index.html`, `LoadingScreen.jsx`, `Starfield.jsx` |
+| LOADING-THEME | Loading 100% thématique Tetris | Fond de tétraminos glissants, logo statique `SUPER` blanc + `TETRIS` multicolore, barre de chargement en carrés colorés, tétramino rotatif avec transition absorption/rejet | `LoadingScreen.jsx`, `Starfield.jsx` |
+| LOADING-TIME | Temps de chargement final | Durée ramenée de 60s de review à 12s pour la version test/publication | `App.jsx` |
+| SHOP-PACKS | Boutique harmonisée avec gameplay | Packs Starter / Adventurer / Legendary / Ultimate, prix $ visibles en or, coûts en pièces sur la même ligne, CTA `Obtenir mon pack`, boosters colorés comme dans le gameplay | `ShopScreen.jsx` |
+| SHOP-ADS | Coins par publicité hors partie | Les vidéos interstitielles de boutique donnent uniquement +5 pièces pour éviter une progression trop rapide | `ShopScreen.jsx`, `RewardedAd.jsx`, `App.jsx` |
+| WHEEL-LOSS | Roue non gagnante à chaque tour | Segments tête de mort entre récompenses, résultat perdant sans bouton récupérer, message de retour plus tard | `FortuneWheel.jsx` |
+| WHEEL-AD | Relance par publicité contrôlée | Bouton vidéo de relance apparaissant aléatoirement sur le cycle 24h, puis disparaît jusqu'au prochain cycle après usage | `FortuneWheel.jsx`, `App.jsx` |
+| GAMEOVER-RESCUE | Écran de mort trop chargé | Séparation nette entre phase de sauvetage et défaite finale; stats discrètes avant abandon, stats complètes seulement à la fin définitive | `GameOverScreen.jsx` |
+| GAMEOVER-ADS | Relance façon Candy Crush | Jusqu'à 3 vidéos interstitielles successives; chaque vidéo donne le droit de continuer et ajoute un booster aléatoire affiché visuellement avec des `+` entre boosters | `GameOverScreen.jsx`, `RewardedAd.jsx`, `App.jsx` |
+| GAMEOVER-LIFE | Rachat de vie avec pièces | Une vie coûte 50 pièces; option présente en plus des vidéos, sans obliger le joueur à regarder une pub | `GameOverScreen.jsx`, `App.jsx` |
+| ADS-FORMAT | Toutes les pubs seront en format interstitiel vidéo | `RewardedAd` simule un plein écran vidéo interstitiel récompensé; en production Google/AdMob, `onComplete` devra être appelé uniquement par le callback officiel de récompense | `RewardedAd.jsx`, `App.jsx`, `i18n.js` |
+| I18N-FINAL | Les autres langues ne doivent pas être décoratives | Textes principaux branchés via `STI18n`; FR/EN mis à jour pour vidéos interstitielles | `i18n.js`, composants |
+| NAV-MOBILE | Retour natif téléphone | Les écrans secondaires reviennent vers Home via `popstate`; les boutons retour visuels sont centrés | `App.jsx`, écrans secondaires |
 
-### 7.3 Pubs (AdMob)
-- ID app AdMob à créer
-- Bannières limitées (pas pendant la partie)
-- Rewarded ads obligatoire (continue, free booster, boost XP)
-- Conformité COPPA (pas d'apps pour enfants <13 ans)
-
-### 7.4 Classification du contenu
-- **PEGI 3** / **ESRB E** (Everyone)
-- Aucun contenu violent, sexuel, ou drogues
+Checklist senior post-fix :
+- ✅ L'ancien loader HTML n'existe plus dans `index.html`; aucun flash `#st-boot`.
+- ✅ Le loading final conserve le design validé par Pino et dure 12 secondes.
+- ✅ Les pubs sont documentées comme vidéos interstitielles récompensées, pas bannières.
+- ✅ Le simulateur publicitaire reste clairement isolé dans `RewardedAd.jsx`.
+- ✅ La récompense ne doit être accordée qu'en fin de vidéo; futur AdMob = callback officiel "reward earned".
+- ✅ La boutique, la roue, le game over et le classement restent harmonisés avec le design existant.
+- ⚠️ Avant publication finale Google : remplacer le simulateur `RewardedAd` par le SDK pub réel, puis régénérer AAB/APK.
+- ⚠️ Le déploiement Cloudflare reste dépendant d'un token/login valide.
 
 ---
 
-## 8. Métriques de succès (post-launch)
+### ✅ Patch v1.21.0 (2026-06-06) — Internationalisation réelle 12 langues
 
-| Métrique | Cible J+30 |
-|---|---|
-| DAU (utilisateurs quotidiens) | 1 000 |
-| Sessions / utilisateur / jour | 3+ |
-| Durée moyenne de session | 8 min |
-| D1 retention | 40%+ |
-| D7 retention | 20%+ |
-| Note Play Store | 4.4+ ⭐ |
-| Conversion ad rewarded | 30%+ |
-| Conversion achat IAP | 1.5%+ |
+| # | Besoin | Fix | Fichier |
+|---|---|---|---|
+| I18N-REAL | Les langues autres que FR/EN ne doivent plus être décoratives | Ajout d'une couche `STI18n` partagée, 12 langues disponibles, `lang`/`dir` appliqués au document, textes branchés sur accueil, paramètres, boutique, classement, game over, roue, HUD, pause et tutoriel | `src/i18n.js`, `App.jsx`, composants |
+| I18N-SETTINGS | Sélecteur langue limité à FR/EN | Paramètres alimente le select depuis `STI18n.languages` et applique immédiatement la langue choisie | `SettingsScreen.jsx` |
+| I18N-CACHE | Propagation mobile | Version `1.21.0`, cache SW `super-tetris-v1.21.0`, bundle query `?v=1.21.0` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
+
+Checklist post-fix :
+- ✅ Les textes visibles majeurs ne sont plus codés en dur sur les écrans utilisateurs principaux.
+- ✅ L'arabe applique `dir="rtl"` au document.
+- ✅ Le design et le placement Boutique/Classement v1.20.2 sont conservés.
 
 ---
 
-_Cette app fait partie de **CloneX Studio**. Voir aussi : [Byer](../byer/CAHIER-CHARGES.md), [Tetroid](../tetroid-pro/), [Switchr](?), [SecretNote](?), [DailyNote](?)._
+### ✅ Patch v1.20.2 (2026-06-06) — Placement final Boutique / Classement
+
+| # | Besoin | Fix | Fichier |
+|---|---|---|---|
+| UX-HOME-2 | Boutique attendue sur l'ancien bouton Paramètres du bas | Bouton bas gauche `🛒` = Boutique ; badge de rang cliquable = Classement local ; Paramètres reste en haut à droite | `HomeScreen.jsx` |
+| CACHE | Propagation mobile | Version `1.20.2`, cache SW `super-tetris-v1.20.2`, bundle query `?v=1.20.2` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
+
+---
+
+### ✅ Patch v1.20.1 (2026-06-06) — Harmonie design Home
+
+| # | Besoin | Fix | Fichier |
+|---|---|---|---|
+| UX-HOME | Trop de CTAs après ajout boutique/stats | Retrait de la barre secondaire ajoutée ; retour à la composition originale : coins `+` pour Boutique, bouton gauche Stats, bouton central New Game, bouton droit Roue, engrenage top Paramètres | `HomeScreen.jsx` |
+| CACHE | Propagation mobile de la retouche design | Version `1.20.1`, cache SW `super-tetris-v1.20.1`, bundle query `?v=1.20.1` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
+
+---
+
+### ✅ Patch v1.20.0 (2026-06-06) — Boutique + classement local effectifs
+
+| # | Besoin | Fix | Fichier |
+|---|---|---|---|
+| V1-SHOP | Boutique réelle sans IAP ni mock | `ShopScreen` fonctionnel : achat de boosters avec les pièces gagnées, stock visible, boutons désactivés si solde insuffisant | `ShopScreen.jsx`, `App.jsx`, `build.js` |
+| V1-STATS | Classement exploitable sans backend | `StatsScreen` local : record, parties, lignes, XP, top 10 scores sur l'appareil | `StatsScreen.jsx`, `App.jsx`, `build.js` |
+| V1-HIST | Persistance des scores | `profile.history` ajouté, validé au chargement, limité à 30 parties | `App.jsx`, `useStorage.js` |
+| V1-BOOST | Boosters vides utilisables proprement | Achat direct en jeu si assez de pièces, sinon bouton désactivé ; plus de `+` cliquable sans effet | `GameScreen.jsx`, `BoosterButtons.jsx` |
+| BUMP | Propagation mobile | Version `1.20.0`, cache SW `super-tetris-v1.20`, bundle query `?v=1.20` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
+
+**Checklist senior post-fix :**
+- ✅ Aucun achat intégré simulé : la boutique consomme uniquement les coins gagnés en jeu.
+- ✅ Classement explicitement local, sans promesse de backend mondial.
+- ✅ Historique validé par `useStorage` pour éviter corruption DevTools.
+- ✅ Les boosters vides ne déclenchent plus d'alerte ni d'écran mock.
+
+---
+
+### ✅ Patch v1.19.0 (2026-06-06) — Publication-ready cleanup
+
+| # | Bug audit | Fix | Fichier |
+|---|---|---|---|
+| H1 | Claims i18n trop ambitieux / langues non branchées | Textes resserrés sur FR/EN uniquement, commentaire settings clarifié : pas d'ajout de langues avant traduction complète | `manifest.json`, `SettingsScreen.jsx`, `PLAY-STORE-LISTING.md` |
+| H3 | Mocks visibles boutique/ads/Coming Soon | Suppression de l'alert boutique, boosters vides désactivés sans CTA achat, routes `shop/stats` renvoyées vers Home tant que V2 non branchée | `GameScreen.jsx`, `BoosterButtons.jsx`, `App.jsx` |
+| B14 | Versions désynchronisées | Alignement package/app marker/bundle query/SW cache/docs sur `1.19.0` / `v1.19` | `package.json`, `HomeScreen.jsx`, `SettingsScreen.jsx`, `index.html`, `sw.js`, `CAHIER-CHARGES.md` |
+
+**Checklist senior post-fix :**
+- ✅ Aucun CTA boutique factice visible en V1 Play Store.
+- ✅ Aucun bouton "pub pour continuer" rendu tant qu'AdMob n'est pas branché.
+- ✅ Le manifest et la fiche Play Store ne promettent plus classement mondial / missions non livrés.
+- ✅ Le cache SW est bumpé pour forcer la propagation (`super-tetris-v1.19`).
+
+---
+
+### ✅ Patch v1.16+ round 3 (2026-05-06) — Music + Save integrity
+
+| # | Bug audit | Fix | Fichier |
+|---|---|---|---|
+| M7 | Music race condition : RAF se met en pause sur visibility hidden mais `setInterval` musique tourne toujours | `document.addEventListener("visibilitychange")` dans music.js : sauvegarde `_wasPlayingBeforeHide`, stop si hidden, restart au retour focus avec timings recalibrés | `game/music.js:237-256` |
+| M9 | Save game integrity : pas de validation profile au load (DevTools `coins:"abc"` → crash) | `validateProfile()` + `validateSettings()` dans `safeRead`. Type-check chaque champ critique (coins/xp/bestScore/totalGames/wheelLastFree int positifs ; boosters int 0-999 ; settings booleans + lang ≤4 chars + theme enum). Fallback sur defaultValue si corrompu. | `hooks/useStorage.js:29-83` |
+
+---
+
+### ✅ Patch v1.16+ round 2 (2026-05-06) — Bundle minify + SRI
+
+| # | Bug audit | Fix | Fichier |
+|---|---|---|---|
+| H5 | Bundle 228 KB non-minifié + React UMD CDN sans SRI | **Terser ajouté** au build (compress 2 passes + mangle) → bundle **228 KB → 95.4 KB** (-58%). React 18.2.0 / ReactDOM 18.2.0 chargés depuis cdnjs avec **`integrity` SHA-512** vérifié. | `build.js:101-119`, `index.html:67-76` |
+
+**Conséquence** : boot mobile 3G ~2× plus rapide. Si CDN servait un fichier modifié → browser refuse l'exécution.
+
+---
+
+### ✅ Patch v1.16+ (2026-05-06) — Cleanup mocks visibles + Tutorial
+
+**3 BUG-AUDIT (HAUTE) FIXÉS** :
+1. **Bouton "+" boutique** masqué dans `HomeScreen.jsx:40-44` (commentaire — risque rejet Play Store si on affiche mock "Coming Soon")
+2. **"📊 Classement"** remplacé par **"⚙️ Paramètres"** (vrai écran au lieu du Coming Soon)
+3. **`onContinueWithAd`** retiré de `App.jsx:171-184` → bouton "📺 Voir une pub pour continuer" disparaît du GameOverScreen (le `window.alert("Pub regardée !")` simulant une pub était un risque rejet "achat intégré simulé")
+
+**+ Nouvelle fonctionnalité v1.16+ : TUTORIAL FIRST-LAUNCH**
+- Modal 5 steps qui apparaît une seule fois au 1er lancement (HomeScreen)
+- Steps : Bienvenue / Déplacements / Rotation / Boosters / Records & Roue
+- Stockage `localStorage["st_tutorial_seen"]`
+- Reset automatique sur `handleResetData` (re-affichera au prochain new game)
+- Skip + bouton Précédent/Suivant + indicateurs steps animés
+
+**Conséquence** : l'app est maintenant Play Store-clean côté monétisation factice (audit BUG-AUDIT-ST-3 closed).
+
+---
+
+### 🔍 Senior Audit 2026-05-06 — 15 issues prioritaires
+
+| # | Sévérité | Sujet | Zone | Effort |
+|---|---|---|---|---|
+| H1 | **HAUTE** | i18n 16 langues annoncées, 100% FR hardcoded (0 fichier i18n, 2 langues dropdown stub) | ✅ Fix v1.19 : claims resserrés FR/EN, pas de promesse 16 langues | Clos |
+| H2 | **HAUTE** | Race condition double-write settings : `STMusic.toggle` écrit localStorage direct ET `useStorage` memCache → désync possible | `music.js:113-115`, `audio.js:51-58`, `SettingsScreen.jsx:58` | S |
+| H3 | **HAUTE** | Shop = écran "🚧 Coming Soon", RewardedAd = `alert("Pub regardée !")` → mock visible | ✅ Fix v1.19 : shop/stats non exposés, alert boutique retirée, CTA achat désactivé | Clos |
+| H4 | **HAUTE** | T-spin detection pas conforme Tetris Guideline (pas de mini/full distinction, kick non vérifié) | `core.js:172-195`, `scoring.js:62-67` | M |
+| H5 | **HAUTE** | Bundle 228 KB non-minifié + React UMD CDN sans intégrité SRI | `bundle.js`, `index.html:67-68` | S |
+| M6 | MOYENNE | Tutorial / onboarding 0 — pas de first-launch guide (8 hints LoadingScreen non lus attentivement) | aucun fichier | M |
+| M7 | MOYENNE | Music race condition au pause / blur : RAF se met en pause mais `setInterval` musique tourne en background | `GameScreen.jsx:62-79`, `useGameLoop.js:34-46` | S |
+| M8 | MOYENNE | AudioContext jamais `close()` → fuite mémoire après N parties | `audio.js:25` | S |
+| M9 | MOYENNE | Save game integrity manquante (pas de validation structure profile au load) | `useStorage.js:29-41` | M |
+| M10 | MOYENNE | Tap targets boosters 44px = limite WCAG, coin badge `+` 28px sous min, pas d'`aria-pressed` | `BoosterButtons.jsx:152`, `HomeScreen.jsx:306-316` | S |
+| M11 | MOYENNE | SW network-first sur HTML/JS/CSS casse l'offline 1ère visite si `bundle.js` pas pré-cached | `sw.js:46-60` | S |
+| M12 | MOYENNE | Bouton retour Android (popstate) accumule entries history sans cleanup | `App.jsx:67-79` | S |
+| B13 | BASSE | Account ID Cloudflare exposé dans `wrangler.jsonc` commit (acceptable, pré-empt comment) | `wrangler.jsonc:4` | S |
+| B14 | BASSE | Versions désynchros : `index.html ?v=1.13` / `sw.js v1.16` / `HomeScreen v1.16` / `SettingsScreen 0.1.0` | ✅ Fix v1.19 : versions alignées | Clos |
+| B15 | BASSE | Roue de la fortune : `Math.random()` non audité contre weights=0, pondération récompenses non disclosée (PEGI 12+ risk) | `FortuneWheel.jsx:68-76` | S |
+
+**Bloquants Play Store réels restants** : H4 (T-spin pas Tetris-Guideline-compliant pour pros).
+**Stack solide** : refonte tactile v1.16 (copie Tetroid `passive:false + preventDefault`) marche, plant on contact, freeze ralenti, laser/meteor sync, back button centré.
+
+### ✅ Fait (V1.14 — 2026-05-05 patch Pino)
+**4 bugs UX/booster reportés par Pino, tous fixés en bloc :**
+
+| # | Symptôme | Cause technique | Fix v1.14 | Fichier |
+|---|---|---|---|---|
+| **BUG-ST-ROT** | Tap écran ne rote plus la pièce | Seuil `total < 16px` trop strict — un tap avec wobble 17-23px était rejeté | Suivi d'un flag `moved` : tap = aucun `movePiece` déclenché ET `dur < 350ms`. Plus tolérant aux finger-wobbles. | `GameScreen.jsx` |
+| **BUG-ST-LASER** | Briques disparaissent AVANT que les lasers ne traversent | `applyLaser(G)` exécuté immédiatement, VFX en parallèle | Délai 340ms (= durée du sweep beam) avant destruction. Son joué AVANT le délai. | `GameScreen.jsx` |
+| **BUG-ST-METEOR** | Briques disparaissent AVANT impact des météores | `applyMeteor` détruisait toutes colonnes d'un coup | Nouvelle fn `applyMeteorColumn(G, col)` + ordonnancement par-colonne (`col*80 + (topRow+1)*37 ms`). Météore VFX retiré à l'impact via `killMeteorAt(col)`. Gravité globale appliquée APRÈS dernier impact. | `boosters.js`, `booster-fx.js`, `GameScreen.jsx` |
+| **BUG-ST-FREEZE** | Freeze stoppait complètement les pièces | Game loop avait `return` immédiat si `isFrozen` | Override gravity → `gravityMs(1)` (= 1000 ms/cell, vitesse niveau 1) pendant 15s. Les pièces continuent à tomber, juste plus lentement. | `GameScreen.jsx` |
+
+**Checklist senior post-fix :**
+- ✅ Pas de race condition : delays utilisent `gameRef.current` (live) + check `gameOver` à chaque setTimeout firing
+
+| # | Besoin validé par Pino | Décision / Fix | Fichiers |
+|---|---|---|---|
+| DOC-STATE | Le cahier de charge doit rester la source de vérité projet | Ajout de cette section pour documenter les validations finales effectuées pendant la passe Codex | `CAHIER-CHARGES.md` |
+| LOADING-NEW | Détruire l'ancien splash qui flashait parfois avant React | Suppression complète de l'ancien `#st-boot` dans `index.html`; seul `LoadingScreen` reste actif | `index.html`, `LoadingScreen.jsx`, `Starfield.jsx` |
+| LOADING-THEME | Loading 100% thématique Tetris | Fond de tétraminos glissants, logo statique `SUPER` blanc + `TETRIS` multicolore, barre de chargement en carrés colorés, tétramino rotatif avec transition absorption/rejet | `LoadingScreen.jsx`, `Starfield.jsx` |
+| LOADING-TIME | Temps de chargement final | Durée ramenée de 60s de review à 12s pour la version test/publication | `App.jsx` |
+| SHOP-PACKS | Boutique harmonisée avec gameplay | Packs Starter / Adventurer / Legendary / Ultimate, prix $ visibles en or, coûts en pièces sur la même ligne, CTA `Obtenir mon pack`, boosters colorés comme dans le gameplay | `ShopScreen.jsx` |
+| SHOP-ADS | Coins par publicité hors partie | Les vidéos interstitielles de boutique donnent uniquement +5 pièces pour éviter une progression trop rapide | `ShopScreen.jsx`, `RewardedAd.jsx`, `App.jsx` |
+| WHEEL-LOSS | Roue non gagnante à chaque tour | Segments tête de mort entre récompenses, résultat perdant sans bouton récupérer, message de retour plus tard | `FortuneWheel.jsx` |
+| WHEEL-AD | Relance par publicité contrôlée | Bouton vidéo de relance apparaissant aléatoirement sur le cycle 24h, puis disparaît jusqu'au prochain cycle après usage | `FortuneWheel.jsx`, `App.jsx` |
+| GAMEOVER-RESCUE | Écran de mort trop chargé | Séparation nette entre phase de sauvetage et défaite finale; stats discrètes avant abandon, stats complètes seulement à la fin définitive | `GameOverScreen.jsx` |
+| GAMEOVER-ADS | Relance façon Candy Crush | Jusqu'à 3 vidéos interstitielles successives; chaque vidéo donne le droit de continuer et ajoute un booster aléatoire affiché visuellement avec des `+` entre boosters | `GameOverScreen.jsx`, `RewardedAd.jsx`, `App.jsx` |
+| GAMEOVER-LIFE | Rachat de vie avec pièces | Une vie coûte 50 pièces; option présente en plus des vidéos, sans obliger le joueur à regarder une pub | `GameOverScreen.jsx`, `App.jsx` |
+| ADS-FORMAT | Toutes les pubs seront en format interstitiel vidéo | `RewardedAd` simule un plein écran vidéo interstitiel récompensé; en production Google/AdMob, `onComplete` devra être appelé uniquement par le callback officiel de récompense | `RewardedAd.jsx`, `App.jsx`, `i18n.js` |
+| I18N-FINAL | Les autres langues ne doivent pas être décoratives | Textes principaux branchés via `STI18n`; FR/EN mis à jour pour vidéos interstitielles | `i18n.js`, composants |
+| NAV-MOBILE | Retour natif téléphone | Les écrans secondaires reviennent vers Home via `popstate`; les boutons retour visuels sont centrés | `App.jsx`, écrans secondaires |
+
+Checklist senior post-fix :
+- ✅ L'ancien loader HTML n'existe plus dans `index.html`; aucun flash `#st-boot`.
+- ✅ Le loading final conserve le design validé par Pino et dure 12 secondes.
+- ✅ Les pubs sont documentées comme vidéos interstitielles récompensées, pas bannières.
+- ✅ Le simulateur publicitaire reste clairement isolé dans `RewardedAd.jsx`.
+- ✅ La récompense ne doit être accordée qu'en fin de vidéo; futur AdMob = callback officiel "reward earned".
+- ✅ La boutique, la roue, le game over et le classement restent harmonisés avec le design existant.
+- ⚠️ Avant publication finale Google : remplacer le simulateur `RewardedAd` par le SDK pub réel, puis régénérer AAB/APK.
+- ⚠️ Le déploiement Cloudflare reste dépendant d'un token/login valide.
+
+---
+
+### ✅ Patch v1.21.0 (2026-06-06) — Internationalisation réelle 12 langues
+
+| # | Besoin | Fix | Fichier |
+|---|---|---|---|
+| I18N-REAL | Les langues autres que FR/EN ne doivent plus être décoratives | Ajout d'une couche `STI18n` partagée, 12 langues disponibles, `lang`/`dir` appliqués au document, textes branchés sur accueil, paramètres, boutique, classement, game over, roue, HUD, pause et tutoriel | `src/i18n.js`, `App.jsx`, composants |
+| I18N-SETTINGS | Sélecteur langue limité à FR/EN | Paramètres alimente le select depuis `STI18n.languages` et applique immédiatement la langue choisie | `SettingsScreen.jsx` |
+| I18N-CACHE | Propagation mobile | Version `1.21.0`, cache SW `super-tetris-v1.21.0`, bundle query `?v=1.21.0` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
+
+Checklist post-fix :
+- ✅ Les textes visibles majeurs ne sont plus codés en dur sur les écrans utilisateurs principaux.
+- ✅ L'arabe applique `dir="rtl"` au document.
+- ✅ Le design et le placement Boutique/Classement v1.20.2 sont conservés.
+
+---
+
+### ✅ Patch v1.20.2 (2026-06-06) — Placement final Boutique / Classement
+
+| # | Besoin | Fix | Fichier |
+|---|---|---|---|
+| UX-HOME-2 | Boutique attendue sur l'ancien bouton Paramètres du bas | Bouton bas gauche `🛒` = Boutique ; badge de rang cliquable = Classement local ; Paramètres reste en haut à droite | `HomeScreen.jsx` |
+| CACHE | Propagation mobile | Version `1.20.2`, cache SW `super-tetris-v1.20.2`, bundle query `?v=1.20.2` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
+
+---
+
+### ✅ Patch v1.20.1 (2026-06-06) — Harmonie design Home
+
+| # | Besoin | Fix | Fichier |
+|---|---|---|---|
+| UX-HOME | Trop de CTAs après ajout boutique/stats | Retrait de la barre secondaire ajoutée ; retour à la composition originale : coins `+` pour Boutique, bouton gauche Stats, bouton central New Game, bouton droit Roue, engrenage top Paramètres | `HomeScreen.jsx` |
+| CACHE | Propagation mobile de la retouche design | Version `1.20.1`, cache SW `super-tetris-v1.20.1`, bundle query `?v=1.20.1` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
+
+---
+
+### ✅ Patch v1.20.0 (2026-06-06) — Boutique + classement local effectifs
+
+| # | Besoin | Fix | Fichier |
+|---|---|---|---|
+| V1-SHOP | Boutique réelle sans IAP ni mock | `ShopScreen` fonctionnel : achat de boosters avec les pièces gagnées, stock visible, boutons désactivés si solde insuffisant | `ShopScreen.jsx`, `App.jsx`, `build.js` |
+| V1-STATS | Classement exploitable sans backend | `StatsScreen` local : record, parties, lignes, XP, top 10 scores sur l'appareil | `StatsScreen.jsx`, `App.jsx`, `build.js` |
+| V1-HIST | Persistance des scores | `profile.history` ajouté, validé au chargement, limité à 30 parties | `App.jsx`, `useStorage.js` |
+| V1-BOOST | Boosters vides utilisables proprement | Achat direct en jeu si assez de pièces, sinon bouton désactivé ; plus de `+` cliquable sans effet | `GameScreen.jsx`, `BoosterButtons.jsx` |
+| BUMP | Propagation mobile | Version `1.20.0`, cache SW `super-tetris-v1.20`, bundle query `?v=1.20` | `package.json`, `index.html`, `sw.js`, `HomeScreen.jsx`, `SettingsScreen.jsx` |
+
+**Checklist senior post-fix :**
+- ✅ Aucun achat intégré simulé : la boutique consomme uniquement les coins gagnés en jeu.
+- ✅ Classement explicitement local, sans promesse de backend mondial.
+- ✅ Historique validé par `useStorage` pour éviter corruption DevTools.
+- ✅ Les boosters vides ne déclenchent plus d'alerte ni d'écran mock.
+
+---
+
+### ✅ Patch v1.19.0 (2026-06-06) — Publication-ready cleanup
+
+| # | Bug audit | Fix | Fichier |
+|---|---|---|---|
+| H1 | Claims i18n trop ambitieux / langues non branchées | Textes resserrés sur FR/EN uniquement, commentaire settings clarifié : pas d'ajout de langues avant traduction complète | `manifest.json`, `SettingsScreen.jsx`, `PLAY-STORE-LISTING.md` |
+| H3 | Mocks visibles boutique/ads/Coming Soon | Suppression de l'alert boutique, boosters vides désactivés sans CTA achat, routes `shop/stats` renvoyées vers Home tant que V2 non branchée | `GameScreen.jsx`, `BoosterButtons.jsx`, `App.jsx` |
+| B14 | Versions désynchronisées | Alignement package/app marker/bundle query/SW cache/docs sur `1.19.0` / `v1.19` | `package.json`, `HomeScreen.jsx`, `SettingsScreen.jsx`, `index.html`, `sw.js`, `CAHIER-CHARGES.md` |
+
+**Checklist senior post-fix :**
+- ✅ Aucun CTA boutique factice visible en V1 Play Store.
+- ✅ Aucun bouton "pub pour continuer" rendu tant qu'AdMob n'est pas branché.
+- ✅ Le manifest et la fiche Play Store ne promettent plus classement mondial / missions non livrés.
+- ✅ Le cache SW est bumpé pour forcer la propagation (`super-tetris-v1.19`).
+
+---
+
+### ✅ Patch v1.16+ round 3 (2026-05-06) — Music + Save integrity
+
+| # | Bug audit | Fix | Fichier |
+|---|---|---|---|
+| M7 | Music race condition : RAF se met en pause sur visibility hidden mais `setInterval` musique tourne toujours | `document.addEventListener("visibilitychange")` dans music.js : sauvegarde `_wasPlayingBeforeHide`, stop si hidden, restart au retour focus avec timings recalibrés | `game/music.js:237-256` |
+| M9 | Save game integrity : pas de validation profile au load (DevTools `coins:"abc"` → crash) | `validateProfile()` + `validateSettings()` dans `safeRead`. Type-check chaque champ critique (coins/xp/bestScore/totalGames/wheelLastFree int positifs ; boosters int 0-999 ; settings booleans + lang ≤4 chars + theme enum). Fallback sur defaultValue si corrompu. | `hooks/useStorage.js:29-83` |
+
+---
+
+### ✅ Patch v1.16+ round 2 (2026-05-06) — Bundle minify + SRI
+
+| # | Bug audit | Fix | Fichier |
+|---|---|---|---|
+| H5 | Bundle 228 KB non-minifié + React UMD CDN sans SRI | **Terser ajouté** au build (compress 2 passes + mangle) → bundle **228 KB → 95.4 KB** (-58%). React 18.2.0 / ReactDOM 18.2.0 chargés depuis cdnjs avec **`integrity` SHA-512** vérifié. | `build.js:101-119`, `index.html:67-76` |
+
+**Conséquence** : boot mobile 3G ~2× plus rapide. Si CDN servait un fichier modifié → browser refuse l'exécution.
+
+---
+
+### ✅ Patch v1.16+ (2026-05-06) — Cleanup mocks visibles + Tutorial
+
+**3 BUG-AUDIT (HAUTE) FIXÉS** :
+1. **Bouton "+" boutique** masqué dans `HomeScreen.jsx:40-44` (commentaire — risque rejet Play Store si on affiche mock "Coming Soon")
+2. **"📊 Classement"** remplacé par **"⚙️ Paramètres"** (vrai écran au lieu du Coming Soon)
+3. **`onContinueWithAd`** retiré de `App.jsx:171-184` → bouton "📺 Voir une pub pour continuer" disparaît du GameOverScreen (le `window.alert("Pub regardée !")` simulant une pub était un risque rejet "achat intégré simulé")
+
+**+ Nouvelle fonctionnalité v1.16+ : TUTORIAL FIRST-LAUNCH**
+- Modal 5 steps qui apparaît une seule fois au 1er lancement (HomeScreen)
+- Steps : Bienvenue / Déplacements / Rotation / Boosters / Records & Roue
+- Stockage `localStorage["st_tutorial_seen"]`
+- Reset automatique sur `handleResetData` (re-affichera au prochain new game)
+- Skip + bouton Précédent/Suivant + indicateurs steps animés
+
+**Conséquence** : l'app est maintenant Play Store-clean côté monétisation factice (audit BUG-AUDIT-ST-3 closed).
+
+---
+
+### 🔍 Senior Audit 2026-05-06 — 15 issues prioritaires
+
+| # | Sévérité | Sujet | Zone | Effort |
+|---|---|---|---|---|
+| H1 | **HAUTE** | i18n 16 langues annoncées, 100% FR hardcoded (0 fichier i18n, 2 langues dropdown stub) | ✅ Fix v1.19 : claims resserrés FR/EN, pas de promesse 16 langues | Clos |
+| H2 | **HAUTE** | Race condition double-write settings : `STMusic.toggle` écrit localStorage direct ET `useStorage` memCache → désync possible | `music.js:113-115`, `audio.js:51-58`, `SettingsScreen.jsx:58` | S |
+| H3 | **HAUTE** | Shop = écran "🚧 Coming Soon", RewardedAd = `alert("Pub regardée !")` → mock visible | ✅ Fix v1.19 : shop/stats non exposés, alert boutique retirée, CTA achat désactivé | Clos |
+| H4 | **HAUTE** | T-spin detection pas conforme Tetris Guideline (pas de mini/full distinction, kick non vérifié) | `core.js:172-195`, `scoring.js:62-67` | M |
+| H5 | **HAUTE** | Bundle 228 KB non-minifié + React UMD CDN sans intégrité SRI | `bundle.js`, `index.html:67-68` | S |
+| M6 | MOYENNE | Tutorial / onboarding 0 — pas de first-launch guide (8 hints LoadingScreen non lus attentivement) | aucun fichier | M |
+| M7 | MOYENNE | Music race condition au pause / blur : RAF se met en pause mais `setInterval` musique tourne en background | `GameScreen.jsx:62-79`, `useGameLoop.js:34-46` | S |
+| M8 | MOYENNE | AudioContext jamais `close()` → fuite mémoire après N parties | `audio.js:25` | S |
+| M9 | MOYENNE | Save game integrity manquante (pas de validation structure profile au load) | `useStorage.js:29-41` | M |
+| M10 | MOYENNE | Tap targets boosters 44px = limite WCAG, coin badge `+` 28px sous min, pas d'`aria-pressed` | `BoosterButtons.jsx:152`, `HomeScreen.jsx:306-316` | S |
+| M11 | MOYENNE | SW network-first sur HTML/JS/CSS casse l'offline 1ère visite si `bundle.js` pas pré-cached | `sw.js:46-60` | S |
+| M12 | MOYENNE | Bouton retour Android (popstate) accumule entries history sans cleanup | `App.jsx:67-79` | S |
+| B13 | BASSE | Account ID Cloudflare exposé dans `wrangler.jsonc` commit (acceptable, pré-empt comment) | `wrangler.jsonc:4` | S |
+| B14 | BASSE | Versions désynchros : `index.html ?v=1.13` / `sw.js v1.16` / `HomeScreen v1.16` / `SettingsScreen 0.1.0` | ✅ Fix v1.19 : versions alignées | Clos |
+| B15 | BASSE | Roue de la fortune : `Math.random()` non audité contre weights=0, pondération récompenses non disclosée (PEGI 12+ risk) | `FortuneWheel.jsx:68-76` | S |
+
+**Bloquants Play Store réels restants** : H4 (T-spin pas Tetris-Guideline-compliant pour pros).
+**Stack solide** : refonte tactile v1.16 (copie Tetroid `passive:false + preventDefault`) marche, plant on contact, freeze ralenti, laser/meteor sync, back button centré.
+
+### ✅ Fait (V1.14 — 2026-05-05 patch Pino)
+**4 bugs UX/booster reportés par Pino, tous fixés en bloc :**
+
+| # | Symptôme | Cause technique | Fix v1.14 | Fichier |
+|---|---|---|---|---|
+| **BUG-ST-ROT** | Tap écran ne rote plus la pièce | Seuil `total < 16px` trop strict — un tap avec wobble 17-23px était rejeté | Suivi d'un flag `moved` : tap = aucun `movePiece` déclenché ET `dur < 350ms`. Plus tolérant aux finger-wobbles. | `GameScreen.jsx` |
+| **BUG-ST-LASER** | Briques disparaissent AVANT que les lasers ne traversent | `applyLaser(G)` exécuté immédiatement, VFX en parallèle | Délai 340ms (= durée du sweep beam) avant destruction. Son joué AVANT le délai. | `GameScreen.jsx` |
+| **BUG-ST-METEOR** | Briques disparaissent AVANT impact des météores | `applyMeteor` détruisait toutes colonnes d'un coup | Nouvelle fn `applyMeteorColumn(G, col)` + ordonnancement par-colonne (`col*80 + (topRow+1)*37 ms`). Météore VFX retiré à l'impact via `killMeteorAt(col)`. Gravité globale appliquée APRÈS dernier impact. | `boosters.js`, `booster-fx.js`, `GameScreen.jsx` |
+| **BUG-ST-FREEZE** | Freeze stoppait complètement les pièces | Game loop avait `return` immédiat si `isFrozen` | Override gravity → `gravityMs(1)` (= 1000 ms/cell, vitesse niveau 1) pendant 15s. Les pièces continuent à tomber, juste plus lentement. | `GameScreen.jsx` |
+
+**Checklist senior post-fix :**
+- ✅ Pas de race condition : delays utilisent `gameRef.current` (live) + check `gameOver` à chaque setTimeout firing
+- ✅ Pas de fuite mémoire : VFX `killMeteorAt(col)` retire le météore visuel synchro destruction
+- ✅ Cumul boosters OK : si 2 lasers/météores enchaînés, les delays ne se marchent pas dessus (chaque setTimeout est indépendant et vérifie l'état du moment)
+- ✅ Freeze + game over : si freeze actif et lock impossible → game over normal (gravity slow ne masque pas la fin)
+- ✅ Tap rotation + soft-drop : le flag `moved` est reset à chaque touchstart, pas de carry-over entre touches
+
+### ✅ Fait (V1.13)
+- Gameplay officiel SRS complet
+- 4 boosters avec effets visuels
+- Roue de la fortune
+- 8 rangs
+- Musique Korobeiniki
+- 100% gratuit / offline / sans pub
+- FR/EN uniquement en V1 ; autres langues à brancher seulement avec traductions complètes
+- Privacy + Support pages
+- Audit sécurité + 1 fix HAUTE
+
+### ✅ Fait (V1.23.1 — 2026-09-18 — Mini-Jeu Bonus "Block Crush")
+
+**Nouveau module : Mini-Jeu Bonus publicitaire "Block Crush" (Vague Montante & Cascades 3D)**
+
+#### Fichiers ajoutés/modifiés :
+| Fichier | Action | Description |
+|---------|--------|-------------|
+| `src/game/crush-engine.js` | NOUVEAU | Moteur autonome 3D : grille 10×20, SRS, vague montante, cascade continue, voxels 3D |
+| `src/components/BonusGameScreen.jsx` | NOUVEAU | Interface React 60 FPS, contrôles tactiles + clavier, HUD, modale de récompenses |
+| `build.js` | MODIFIÉ | Ajout crush-engine.js dans le pipeline + synchro auto www/preview/android |
+| `App.jsx` | EXISTANT | handleBonusComplete crédite les coins et boosters au profil |
+
+#### Gameplay conforme à la vidéo de référence :
+- ✅ Tétrominos SRS aléatoires en descente (7-Bag)
+- ✅ Vague montante depuis le bas toutes les ~8.5s
+- ✅ Système de destruction en cascade continue (gravity → re-check → enchaînement)
+- ✅ Éclatement en voxels 3D avec tumbling physics
+- ✅ Ghost piece, camera shake, ligne de danger
+- ✅ Contrôles tactiles (swipe + boutons arcade) + clavier desktop
+- ✅ Barre de progression de la vague montante
+- ✅ Bannières dynamiques de combos (DOUBLE CRUSH, MEGA CASCADE)
+- ✅ Modale de récompenses finales (pièces d'or & boosters)
+- ✅ Bouton "REJOUER LA VAGUE" fonctionnel
+
+#### Audit Senior v1.23.1 — Bugs corrigés :
+
+| # | Sévérité | Bug | Correction | Fichier |
+|---|----------|-----|------------|---------|
+| 1 | 🔴 CRITIQUE | `handleRestartBonus` créait un moteur orphelin — RAF capture la closure | Boucle RAF utilise `engineRef.current` au lieu de la closure `engine` | `BonusGameScreen.jsx` |
+| 2 | 🟡 MODÉRÉ | `triggerGameOver()` pouvait fire 2x (race condition vague/lock) | Guard `if (state === "gameover") return;` ajouté | `crush-engine.js` |
+| 3 | 🟡 MODÉRÉ | `setGameState()` appelé 60x/s re-renders React excessifs | Throttle HUD React update a 100ms dans la boucle RAF | `BonusGameScreen.jsx` |
+
+#### Audit Senior v1.24.0 — Typographie Grasse Arcade & Résilience Hors-Ligne :
+
+| # | Sévérité | Bug | Correction | Fichier |
+|---|----------|-----|------------|---------|
+| 1 | 🔴 CRITIQUE | Perte du texte en gras en offline / WebView quand Google Fonts CDN échoue | Téléchargement local de `lilita-one.woff2` et `nunito-variable.woff2` dans `vendor/fonts/` + `@font-face` locaux | `vendor/fonts/`, `fonts.css`, `index.html` |
+| 2 | 🔴 MAJEUR | Pas de baseline `font-weight: 800` globale — texte héritait d'un 400 maigre | `html, body`, `button`, `.card` configurés avec `font-weight: 800` par défaut | `src/styles/global.css`, `index.html` |
+| 3 | 🟡 MODÉRÉ | `font-weight: 400` résiduel sur `.logo-rainbow` et `.btn-3d` sans poids explicite | Fixé à `font-weight: 900` sur le logo et les boutons 3D | `src/styles/global.css` |
+| 4 | 🟡 MODÉRÉ | Fallback `'Lilita One', cursive` dans `GameOverScreen` provoquant typo fine ou script | Remplacé par `'Lilita One', 'Nunito', system-ui, sans-serif` | `GameOverScreen.jsx` |
+| 5 | 🟡 MODÉRÉ | Valeurs invalides CSS `fontWeight: 1000` et `fontWeight: 850` ignorées par navigateurs | Normalisé en `fontWeight: 900` | `StatsScreen.jsx`, `ShopScreen.jsx`, `FortuneWheel.jsx` |
+| 6 | 🟢 MINEUR | Fichiers de police absents du Service Worker `sw.js` pour PWA offline | Ajout des polices `.woff2` et libs React au cache PWA | `sw.js` |
+| 7 | 🚀 PROD | Déploiement en ligne Cloudflare Workers | Déploiement réussi sur `https://super-tetris.landonjouajosephpino.workers.dev` | Cloudflare Workers |
+
+**Checklist senior post-fix v1.24.0 :**
+- ✅ Polices 100% locales : embarquées dans `vendor/fonts/`, préchargées dans `index.html`
+- ✅ Typographie robuste et ultra-grasse (800 / 900) sur tous les écrans (Home, Stats, Bonus, GameOver)
+- ✅ Zéro régression : aucune perte de fonctionnalité, boucles de jeu intactes
+- ✅ Service Worker v1.23.0 / v1.24.0 cache les polices locales
+- ✅ Déploiement Cloudflare Workers en ligne vérifié et fonctionnel
+- ✅ Build synchronisé automatiquement sur `www/` et les assets natifs Android
+
+### 🔄 En cours
+- Push Play Store (en attente débloquage compte)
+
+### 📋 V2 (futur)
+1. Migration TS + Vite (cohérence avec Switchr)
+2. Cloud sync via Firebase (scores + classement mondial)
+3. IAP Google Play Billing (Premium Pass)
+4. Mode Sprint (40 lignes en chrono)
+5. Mode Ultra (2 min de gameplay max)
+6. Tournoi cash (sweepstakes — restreint aux pays légalement OK)
+7. Skins de pièces customisables
+8. Mode multijoueur online
+
+---
+
+## 5. Conventions code
+
+- React UMD CDN, JSX dans `src/*.jsx` → Babel concat → `bundle.js`
+- Préfixe localStorage : `st_*`
+- Préfixe fonctions/vars : `st*` (stHash, stRender, etc.)
+- `useStorage` hook centralise lecture/écriture localStorage
+- Schema versionning via `st_v` clé localStorage

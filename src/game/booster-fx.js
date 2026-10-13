@@ -202,6 +202,13 @@
     state.meteorites = [];
   }
 
+  /** v1.14 BUG-ST-METEOR : retire le météore d'1 colonne précise (synchro impact). */
+  function killMeteorAt(col) {
+    state.meteorites = state.meteorites.filter(function (m) {
+      return m.col !== col;
+    });
+  }
+
   /* ═══════════════════════════════════════════════════════════════════
      ❄️ FREEZE VFX
      ═══════════════════════════════════════════════════════════════════ */
@@ -428,6 +435,7 @@
     spawnLaser:           spawnLaser,
     spawnMeteor:          spawnMeteor,
     killAllMeteors:       killAllMeteors,
+    killMeteorAt:         killMeteorAt,
     spawnFreezeEffects:   spawnFreezeEffects,
     setFreezeActive:      setFreezeActive,
     spawnMagnetWaves:     spawnMagnetWaves,

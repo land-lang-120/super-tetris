@@ -22,8 +22,9 @@
 
 const { useState: useStateGS, useRef: useRefGS, useEffect: useEffectGS, useCallback: useCallbackGS } = React;
 
-function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
+function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange, onOpenShop, onWatchAd }) {
   const canvasRef = useRefGS(null);
+  const tr = (key, params) => window.STI18n ? window.STI18n.t(key, params) : key;
 
   // ─── State du jeu (en ref pour perf, pas re-render à chaque frame)
   const gameRef = useRefGS(null);
@@ -36,9 +37,11 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
   // (sinon ReferenceError "Cannot access X before initialization").
   const [tick, setTick]               = useStateGS(0);  // counter pour forcer re-render
   const [paused, setPaused]           = useStateGS(false);
+  const [confirmQuit, setConfirmQuit] = useStateGS(false);
   const [flashRows, setFlashRows]     = useStateGS([]);
   const [combo, setCombo]             = useStateGS(0);
   const [floatScore, setFloatScore]   = useStateGS(null); // {x,y,text}
+  const BOOSTER_COSTS = { freeze: 200, laser: 300, meteor: 400, magnet: 500 };
 
   // ─── Reset particules + VFX boosters au mount (clean state entre 2 parties)
   useEffectGS(() => {
@@ -66,10 +69,9 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
 
   // Pause/Resume music sync avec le pause du jeu
   useEffectGS(() => {
-    if (!window.STMusic) return;
-    if (paused) window.STMusic.stop();
-    else window.STMusic.start();
-  }, [paused]);
+    if (paused || confirmQuit) window.STMusic.stop();
+    else if (window.STMusic && window.STMusic.playTheme) window.STMusic.playTheme();
+  }, [paused, confirmQuit]);
 
   // Stop music quand game over
   useEffectGS(() => {
@@ -81,9 +83,9 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
   // ─── Inputs : swipes + clavier
   useEffectGS(() => {
     const onKey = (e) => {
+      if ((paused || confirmQuit) && e.code !== "Escape") return;
       const G = gameRef.current;
       if (!G || G.gameOver) return;
-      if (paused && e.code !== "Escape") return;
 
       switch (e.code) {
         case "ArrowLeft":
@@ -113,87 +115,135 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paused]);
+  }, [paused, confirmQuit]);
 
-  // ─── Touch controls : swipes + tap (rotate) + double-tap (hard drop)
+  // ─── Touch controls : v1.16 (Pino retour 2026-05-06) — copie fidèle du
+  // pattern Tetroid (qui marche sur son phone). Différences clés vs v1.15 :
+  //   - { passive: false } + e.preventDefault() → empêche le navigateur de
+  //     synthétiser des mousedown/mousemove/mouseup APRÈS le touch, ce qui
+  //     dupliquait les évènements et pétait la détection du tap.
+  //   - Aucun handler souris : sur mobile, seul touch est nécessaire ; sur
+  //     desktop, le clavier est dispo (ArrowKeys + Space).
+  //   - Seuils CELL-relatifs (adx < 0.6 × cellSize) au lieu de px fixes.
+  //   - Plant on contact préservé.
   useEffectGS(() => {
     const cv = canvasRef.current;
     if (!cv) return;
 
-    let startX = 0, startY = 0, startT = 0, lastDy = 0, accDx = 0, accDy = 0;
-    const SENSITIVITY = 24;            // px par cellule de mouvement
+    let ts0 = null, tx0 = 0, ty0 = 0, tst = 0;
+    let downwardMoves = 0;             // soft-drops cumulés (pour plant on contact)
+
+    /** cellSize CSS (rect-based) pour seuils responsive. */
+    function getCellSize() {
+      const rect = cv.getBoundingClientRect();
+      return rect.width / window.STCore.COLS;
+    }
 
     const onStart = (e) => {
+      e.preventDefault();
+      const G = gameRef.current;
+      if (!G || G.gameOver || paused || confirmQuit) return;
       const t = e.touches ? e.touches[0] : e;
-      startX = t.clientX; startY = t.clientY; startT = Date.now();
-      lastDy = 0; accDx = 0; accDy = 0;
+      ts0 = { x: t.clientX, y: t.clientY };
+      tx0 = t.clientX;
+      ty0 = t.clientY;
+      tst = Date.now();
+      downwardMoves = 0;
     };
+
     const onMove = (e) => {
+      e.preventDefault();
+      if (!ts0) return;
       const G = gameRef.current;
-      if (!G || G.gameOver || paused) return;
+      if (!G || G.gameOver || paused || confirmQuit) return;
       const t = e.touches ? e.touches[0] : e;
-      const dx = t.clientX - startX;
-      const dy = t.clientY - startY;
+      const cellSize = getCellSize();
+      const dx = t.clientX - tx0;
+      const dy = t.clientY - ty0;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
 
-      // Mouvement horizontal
-      while (Math.abs(dx - accDx) >= SENSITIVITY) {
-        if (dx > accDx) { if (movePiece(G,  1, 0)) fxMove(); accDx += SENSITIVITY; }
-        else            { if (movePiece(G, -1, 0)) fxMove(); accDx -= SENSITIVITY; }
-      }
-      // Soft drop vers le bas
-      if (dy - accDy >= SENSITIVITY) {
-        while (dy - accDy >= SENSITIVITY) {
-          if (movePiece(G, 0, 1)) { G.score += window.STScoring.softDropScore(); fxMove(); }
-          accDy += SENSITIVITY;
-        }
-      }
-      setTick(s => s + 1);
-    };
-    const onEnd = (e) => {
-      const G = gameRef.current;
-      if (!G || G.gameOver || paused) return;
-      const t = e.changedTouches ? e.changedTouches[0] : e;
-      const dx = t.clientX - startX;
-      const dy = t.clientY - startY;
-      const dur = Date.now() - startT;
-      const total = Math.abs(dx) + Math.abs(dy);
-
-      // Swipe vertical rapide vers le bas → hard drop
-      if (dy > 80 && Math.abs(dy) > Math.abs(dx) * 1.5 && dur < 400) {
-        hardDrop(G);
-        fxHardDrop();
+      // Mouvement horizontal : déclenche une fois par cellSize × 0.5 px (snappy)
+      if (adx > cellSize * 0.5 && adx > ady * 1.1) {
+        const d = dx > 0 ? 1 : -1;
+        if (movePiece(G, d, 0)) fxMove();
+        tx0 = t.clientX;
         setTick(s => s + 1);
         return;
       }
-      // v1.13 BUG-ST-2 FIX : tap court = rotate UNIQUEMENT (plus de double-tap=hold).
-      // Le double-tap était la cause des "pièces qui disparaissent" : 2 taps rapides
-      // pour rotater étaient interprétés comme HOLD → la pièce courante était
-      // remplacée par celle en hold (ou null la 1ère fois). Pattern alterné exact
-      // observé par Pino.
-      // → Hold reste accessible : clavier C/Shift, mini-canvas HOLD du HUD.
-      if (total < 16 && dur < 250) {
-        if (rotatePiece(G, 1)) fxRotate();
+
+      // Soft drop : déclenche par cellSize × 0.75 vers le bas
+      if (dy > 0 && ady > cellSize * 0.75 && adx < cellSize * 0.5) {
+        if (movePiece(G, 0, 1)) {
+          G.score += window.STScoring.softDropScore();
+          fxMove();
+          downwardMoves++;
+        }
+        ty0 = t.clientY;
         setTick(s => s + 1);
       }
     };
 
-    cv.addEventListener("touchstart", onStart, { passive: true });
-    cv.addEventListener("touchmove",  onMove,  { passive: true });
-    cv.addEventListener("touchend",   onEnd,   { passive: true });
-    cv.addEventListener("mousedown",  onStart);
-    cv.addEventListener("mousemove",  (e) => { if (e.buttons) onMove(e); });
-    cv.addEventListener("mouseup",    onEnd);
+    const onEnd = (e) => {
+      e.preventDefault();
+      if (!ts0) return;
+      const G = gameRef.current;
+      if (!G || G.gameOver || paused || confirmQuit) { ts0 = null; return; }
+      const t = e.changedTouches ? e.changedTouches[0] : e;
+      const dx = t.clientX - ts0.x;
+      const dy = t.clientY - ts0.y;
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      const dur = Date.now() - tst;
+      const cellSize = getCellSize();
+
+      // HARD DROP : swipe vertical rapide vers le bas
+      if (dy > cellSize * 4 && adx < cellSize * 1.8 && dur < 360) {
+        hardDrop(G);
+        fxHardDrop();
+        setTick(s => s + 1);
+        ts0 = null;
+        return;
+      }
+
+      // ROTATION (tap) : seuils cell-relatifs comme Tetroid
+      const wasVerticalSwipe = dy > cellSize * 0.8;
+      if (!wasVerticalSwipe && adx < cellSize * 0.6 && ady < cellSize * 0.6 && dur < 420) {
+        if (rotatePiece(G, 1)) fxRotate();
+        setTick(s => s + 1);
+        ts0 = null;
+        return;
+      }
+
+      // PLANT ON CONTACT : si le swipe vertical a fait descendre la pièce
+      // jusqu'au fond, on la verrouille immédiatement.
+      if (downwardMoves > 0 && G.piece) {
+        const stuckOnFloor = window.STCore.collide(G.grid, G.piece, G.piece.x, G.piece.y + 1);
+        if (stuckOnFloor) {
+          lockPieceFlow(G);
+          fxLock();
+          if (G.gameOver) {
+            handleGameOver(G);
+            return;
+          }
+          setTick(s => s + 1);
+        }
+      }
+      ts0 = null;
+    };
+
+    cv.addEventListener("touchstart", onStart, { passive: false });
+    cv.addEventListener("touchmove",  onMove,  { passive: false });
+    cv.addEventListener("touchend",   onEnd,   { passive: false });
 
     return () => {
       cv.removeEventListener("touchstart", onStart);
       cv.removeEventListener("touchmove",  onMove);
       cv.removeEventListener("touchend",   onEnd);
     };
-  }, [paused]);
+  }, [paused, confirmQuit]);
 
   // ─── Game loop : gravité automatique + particles update
   window.useGameLoop({
-    active: !paused,
+    active: !paused && !confirmQuit,
     onTick: (deltaMs) => {
       const G = gameRef.current;
       if (!G || G.gameOver) return;
@@ -208,19 +258,24 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         window.STBoosterFX.update(deltaMs, cv.width, cv.height);
       }
 
-      // Freeze booster : bloque la gravité (mais pas les inputs)
-      if (window.STBoosters && window.STBoosters.isFrozen(G)) {
+      // v1.14 BUG-ST-FREEZE FIX : Freeze RALENTIT (vitesse niveau 1 = 1000 ms/cell)
+      // au lieu de stopper complètement. Le joueur reste pressé mais respire.
+      const isFrozen = !!(window.STBoosters && window.STBoosters.isFrozen(G));
+      if (isFrozen) {
         // Sync VFX freeze : actif tant que isFrozen
         if (window.STBoosterFX) window.STBoosterFX.setFreezeActive(true);
-        setTick(t => t + 1);
-        return;
       } else if (window.STBoosterFX && window.STBoosterFX.hasFreeze()) {
         // Freeze terminé : retirer l'overlay VFX
         window.STBoosterFX.setFreezeActive(false);
       }
 
       G.dropAcc += deltaMs;
-      const gravMs = window.STScoring.gravityMs(G.level);
+      // Si freeze actif → toujours utiliser la gravité du niveau 1 (1000 ms/cell),
+      // sauf si le niveau courant est DÉJÀ plus lent (sécurité débute partie niv.1).
+      const baseGrav = window.STScoring.gravityMs(G.level);
+      const gravMs = isFrozen
+        ? Math.max(baseGrav, window.STScoring.gravityMs(1))
+        : baseGrav;
       while (G.dropAcc >= gravMs) {
         G.dropAcc -= gravMs;
         if (!movePiece(G, 0, 1)) {
@@ -272,14 +327,18 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
 
   // ─── Game over handler
   const handleGameOver = useCallbackGS((G) => {
+    const targetG = G || gameRef.current;
+    if (!targetG) return;
+    targetG.gameOver = true;
+    if (window.STMusic) window.STMusic.stop();
     if (typeof onGameOver === "function") {
-      const xpGain    = window.STScoring.xpFromGame(G.score, G.linesTotal, G.level);
-      const coinsGain = window.STScoring.coinsFromGame(G.score, G.linesTotal);
+      const xpGain    = window.STScoring.xpFromGame(targetG.score, targetG.linesTotal, targetG.level);
+      const coinsGain = window.STScoring.coinsFromGame(targetG.score, targetG.linesTotal);
       onGameOver({
-        score: G.score,
-        linesTotal: G.linesTotal,
-        level: G.level,
-        timeMs: G.elapsedMs,
+        score: targetG.score,
+        linesTotal: targetG.linesTotal,
+        level: targetG.level,
+        timeMs: targetG.elapsedMs,
         xpGain: xpGain,
         coinsGain: coinsGain,
       });
@@ -316,8 +375,10 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     const fallen = targetY - G.piece.y;
     G.piece.y = targetY;
     G.score += window.STScoring.hardDropScore(fallen);
-    G.lastMoveWasRotation = false;
     lockPieceFlow(G);
+    if (G.gameOver) {
+      handleGameOver(G);
+    }
   }
 
   function holdPiece(G) {
@@ -382,6 +443,7 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
     if (window.STCore.isGameOver(G.grid, G.piece)) {
       G.gameOver = true;
       fxGameOver();
+      handleGameOver(G);
     }
   }
 
@@ -422,7 +484,7 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
       indépendamment (purement décoratif). */
   function activateBooster(id) {
     const G = gameRef.current;
-    if (!G || G.gameOver || paused || !window.STBoosters) return;
+    if (!G || G.gameOver || paused || confirmQuit || !window.STBoosters) return;
     const cv = canvasRef.current;
     const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
 
@@ -435,8 +497,10 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
       if (window.STAudio) window.STAudio.play("boosterFreeze");
 
     } else if (id === "laser") {
-      // ⚡ LASER : effet logique IMMÉDIAT (lignes effacées) + VFX beams qui balaient
-      // en parallèle (purement décoratif). Particules rouges sur les lignes touchées.
+      // v1.14 BUG-ST-LASER FIX : SON + VFX d'abord, destruction APRÈS sweep beam.
+      // Avant : applyLaser immédiat → blocs disparaissaient AVANT que le beam
+      // n'ait traversé. Pino : "le laser est censé passer en affichant les
+      // traits avec le son qui va avec avant que les briques ne se détruisent".
       const targets = [];
       for (let r = window.STCore.ROWS - 1; r >= 0 && targets.length < 4; r--) {
         let hasCell = false;
@@ -445,40 +509,86 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         }
         if (hasCell) targets.push(r);
       }
-      // 1) VFX en parallèle (lance le sweep des beams)
+      // 1) Son + VFX beams en parallèle (sweep horizontal sur ~300ms)
+      if (window.STAudio) window.STAudio.play("boosterLaser");
       if (cv && window.STBoosterFX && targets.length > 0) {
         window.STBoosterFX.spawnLaser(targets, cellSize, cv.width);
       }
-      // 2) Logique immédiate (efface les lignes)
-      const result = window.STBoosters.applyLaser(G);
-      // 3) Particules rouges sur chaque ligne effacée
-      if (cv && window.STParticles && result.lines.length > 0) {
-        result.lines.forEach(function (rowIdx) {
-          const cy = rowIdx * cellSize + cellSize / 2;
-          for (let x = 0; x < window.STCore.COLS; x++) {
-            window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
-          }
-        });
-      }
-      if (window.STAudio) window.STAudio.play("boosterLaser");
+      // 2) Destruction synchrone à la fin du sweep (~340ms = beam.x atteint canvasW)
+      //    On capture une référence stable pour éviter race condition si pause.
+      const gRefForLaser = gameRef;
+      setTimeout(function () {
+        const Gnow = gRefForLaser.current;
+        if (!Gnow || Gnow.gameOver) return;
+        const result = window.STBoosters.applyLaser(Gnow);
+        // Particules rouges sur chaque ligne effacée
+        if (cv && window.STParticles && result.lines.length > 0) {
+          result.lines.forEach(function (rowIdx) {
+            const cy = rowIdx * cellSize + cellSize / 2;
+            for (let x = 0; x < window.STCore.COLS; x++) {
+              window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
+            }
+          });
+        }
+        setTick(t => t + 1);
+      }, 340);
 
     } else if (id === "meteor") {
-      // ☄️ METEOR : effet logique IMMÉDIAT + VFX météores en parallèle
+      // v1.14 BUG-ST-METEOR FIX : destruction PAR COLONNE synchronisée à l'impact
+      // de chaque météore (au lieu de tout détruire d'un coup).
+      // Pino : "les météores sont censés venir frapper sur les blocs en même
+      // temps qu'ils se détruisent".
+      // Spawn delay : 80ms par colonne. Fall delay : (topRow+1)*cellSize / vy frames @60fps.
+      // → impactMs(col) = col*80 + (topRow+1)*cellSize/(cellSize*0.45)*16.67
+      //                 = col*80 + (topRow+1)*37
       if (cv && window.STBoosterFX) {
         window.STBoosterFX.spawnMeteor(window.STCore.COLS, cellSize);
       }
-      const result = window.STBoosters.applyMeteor(G);
-      if (cv && window.STParticles) {
-        result.columns.forEach(function (col) {
-          if (col.hits > 0) {
-            const px = col.col * cellSize + cellSize / 2;
-            const py = col.topRow * cellSize + cellSize / 2;
+      if (window.STAudio) window.STAudio.play("boosterMeteor");
+
+      // Calcule par colonne le topRow (ligne de la pile au moment du déclenchement)
+      const meteorPlan = [];
+      for (let c = 0; c < window.STCore.COLS; c++) {
+        let topRow = -1;
+        for (let r = 0; r < window.STCore.ROWS; r++) {
+          if (G.grid[r][c]) { topRow = r; break; }
+        }
+        meteorPlan.push({ col: c, topRow: topRow });
+      }
+      const gRefForMeteor = gameRef;
+      meteorPlan.forEach(function (p) {
+        // Délai impact = spawn delay (col*80) + chute (~ 37ms par cellule)
+        const fallRows = p.topRow >= 0 ? p.topRow + 1 : window.STCore.ROWS;
+        const impactMs = p.col * 80 + fallRows * 37;
+        setTimeout(function () {
+          const Gnow = gRefForMeteor.current;
+          if (!Gnow || Gnow.gameOver) return;
+          const r = window.STBoosters.applyMeteorColumn(Gnow, p.col);
+          // Retire le météore VFX synchronisé (sinon il continue à tomber)
+          if (window.STBoosterFX) window.STBoosterFX.killMeteorAt(p.col);
+          if (cv && window.STParticles && r && r.hits > 0) {
+            const px = p.col * cellSize + cellSize / 2;
+            const py = (p.topRow >= 0 ? p.topRow : 0) * cellSize + cellSize / 2;
             window.STParticles.addShockwave(px, py);
             window.STParticles.addExplosion(px, py, "#ff9000");
           }
-        });
-      }
-      if (window.STAudio) window.STAudio.play("boosterMeteor");
+          // Pas de sound supplémentaire ici (boosterMeteor au déclenchement = sweep complet)
+          // Haptic léger à chaque impact pour le feedback tactile.
+          if (window.STHaptics) window.STHaptics.vibePattern("move");
+          setTick(t => t + 1);
+        }, impactMs);
+      });
+      // Gravité globale appliquée APRÈS la dernière destruction (pour compresser les colonnes)
+      const lastImpact = Math.max(0, ...meteorPlan.map(function (p) {
+        const fallRows = p.topRow >= 0 ? p.topRow + 1 : window.STCore.ROWS;
+        return p.col * 80 + fallRows * 37;
+      }));
+      setTimeout(function () {
+        const Gnow = gRefForMeteor.current;
+        if (!Gnow || Gnow.gameOver || !window.STBoosters) return;
+        window.STBoosters.applyGravity(Gnow.grid);
+        setTick(t => t + 1);
+      }, lastImpact + 80);
 
     } else if (id === "magnet") {
       // 🧲 MAGNET : 5 vagues violettes VFX + gravity multi-pass + clear lignes
@@ -530,26 +640,17 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
       <div style={SGS.canvasWrap}>
         {/* TIMER pill en overlay à GAUCHE (à l'opposé pause/accueil à droite) */}
         <div style={SGS.timerOverlay}>
-          <span style={SGS.timerLabel}>TIME</span>
+          <span style={SGS.timerLabel}>{tr("time")}</span>
           <span style={SGS.timerValue}>{formatGameTime(G.elapsedMs)}</span>
         </div>
 
-        {/* Boutons pause/accueil en overlay à DROITE */}
+        {/* Bouton pause en overlay à DROITE */}
         <div style={SGS.controlsOverlay}>
           <button
             onClick={() => setPaused(p => !p)}
             style={SGS.smallBtn}
-            aria-label="Pause"
+            aria-label={tr("pause")}
           >{paused ? "▶" : "⏸"}</button>
-          <button
-            onClick={() => {
-              if (window.confirm("Quitter la partie ?")) {
-                if (typeof onExitToHome === "function") onExitToHome();
-              }
-            }}
-            style={SGS.smallBtn}
-            aria-label="Accueil"
-          >🏠</button>
         </div>
 
         {/* Canvas backing-store FIXE 400×800 (10 cols × 20 rows × 40px par cellule).
@@ -564,7 +665,7 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
 
         {combo >= 2 && (
           <div style={SGS.comboBanner} className="pop-in" key={"combo" + combo}>
-            COMBO <span style={{ color: "var(--gold)" }}>{combo}</span>
+            {tr("combo")} <span style={{ color: "var(--gold)" }}>{combo}</span>
           </div>
         )}
       </div>
@@ -574,6 +675,8 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
         <window.BoosterButtons
           inventory={(profile && profile.boosters) || {}}
           cooldowns={{}}
+          coins={(profile && profile.coins) || 0}
+          costs={BOOSTER_COSTS}
           onUse={(id) => {
             activateBooster(id);
             if (typeof onProfileChange === "function") {
@@ -586,22 +689,74 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange }) {
               }));
             }
           }}
-          onBuy={(id) => {
-            window.alert("Boutique disponible bientôt !");
+          onBuy={() => {
+            if (typeof onOpenShop === "function") onOpenShop();
           }}
           disabled={paused || G.gameOver}
         />
       )}
 
       {/* Pause modal */}
-      {paused && (
+      {paused && !confirmQuit && (
         <div style={SGS.pauseOverlay} onClick={() => setPaused(false)}>
           <div style={SGS.pauseCard} onClick={(e) => e.stopPropagation()}>
-            <div style={SGS.pauseTitle}>PAUSE</div>
+            <div style={SGS.pauseTitle}>{tr("pause")}</div>
             <button className="btn-3d" style={{ width: "100%", marginBottom: 12 }}
-              onClick={() => setPaused(false)}>Reprendre</button>
+              onClick={() => {
+                if (window.STAudio) window.STAudio.play("click");
+                setPaused(false);
+              }}>{tr("resume")}</button>
             <button className="btn-3d purple" style={{ width: "100%" }}
-              onClick={() => onExitToHome && onExitToHome()}>Accueil</button>
+              onClick={() => {
+                if (window.STAudio) window.STAudio.play("click");
+                setConfirmQuit(true);
+              }}>{tr("home")}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Quit confirmation modal */}
+      {confirmQuit && (
+        <div style={SGS.pauseOverlay} onClick={() => setConfirmQuit(false)}>
+          <div style={SGS.pauseCard} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 40, textAlign: "center", marginBottom: 12 }}>🚪</div>
+            <div style={SGS.quitTitle}>{tr("quitGame") || "Quitter la partie ?"}</div>
+            <div style={{ display: "flex", gap: 14, marginTop: 22 }}>
+              <button
+                className="btn-3d"
+                style={{
+                  flex: 1,
+                  background: "linear-gradient(180deg, #10b981, #059669)",
+                  borderBottom: "4px solid #047857",
+                  fontSize: 18,
+                  padding: "12px 0",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  if (window.STAudio) window.STAudio.play("click");
+                  setConfirmQuit(false);
+                }}
+              >
+                {tr("no") || "Non"}
+              </button>
+              <button
+                className="btn-3d purple"
+                style={{
+                  flex: 1,
+                  background: "linear-gradient(180deg, #ef4444, #dc2626)",
+                  borderBottom: "4px solid #b91c1c",
+                  fontSize: 18,
+                  padding: "12px 0",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  if (window.STAudio) window.STAudio.play("click");
+                  if (typeof onExitToHome === "function") onExitToHome();
+                }}
+              >
+                {tr("yes") || "Oui"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -677,7 +832,7 @@ const SGS = {
     letterSpacing: 1.5,
   },
   timerValue: {
-    fontFamily: "'Lilita One', cursive",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     fontSize: 16,
     color: "var(--sky)",
     letterSpacing: 1,
@@ -700,6 +855,13 @@ const SGS = {
     fontSize: 18,
     color: "#fff",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 3px 0 rgba(0,0,0,0.25)",
+    /* v1.16 (Pino) : centre l'icône (🏠/⏸/▶) verticalement et horizontalement
+       dans le bouton — sinon l'emoji "flotte" en bas à cause du baseline natif. */
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    lineHeight: 1,
   },
 
   canvasWrap: {
@@ -736,7 +898,7 @@ const SGS = {
     background: "linear-gradient(90deg, var(--blue), var(--sky))",
     color: "#fff",
     padding: "8px 22px 8px 14px",
-    fontFamily: "'Lilita One', cursive",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     fontSize: 22,
     letterSpacing: 1,
     clipPath: "polygon(0 0, 100% 0, 92% 100%, 0 100%)",
@@ -763,13 +925,22 @@ const SGS = {
     boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
   },
   pauseTitle: {
-    fontFamily: "'Lilita One', cursive",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     fontSize: 36,
     color: "var(--gold)",
     textAlign: "center",
     marginBottom: 20,
     letterSpacing: 4,
     textShadow: "0 3px 0 rgba(0,0,0,0.3)",
+  },
+  quitTitle: {
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 26,
+    color: "#ffffff",
+    textAlign: "center",
+    marginBottom: 10,
+    letterSpacing: 1,
+    textShadow: "0 3px 0 rgba(0,0,0,0.4)",
   },
 };
 

@@ -10,6 +10,11 @@ node_modules
 .idea
 *.log
 .DS_Store
+android/
+scratch/
+test-unzip/
+test-unzip-valid/
+preview-public/
 
 # Build/dev tooling — pas besoin sur le serveur
 build.js
@@ -26,6 +31,15 @@ scripts
 *-keystore-passwords.txt
 icons/icon-source.svg
 # (downloads/*.apk EST volontairement servi en public pour la beta)
+
+# Play Store assets (gros, internes — pas pour le navigateur)
+play-store-assets/
+*.aab
+*.apk
+PLAY-STORE-LISTING.md
+PLAY-STORE-DEPLOYMENT-GUIDE.md
+generate-feature-graphic.mjs
+generate-marketing-screenshots.mjs
 
 # Doc — privée
 CAHIER-CHARGES.md

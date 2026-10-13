@@ -10,12 +10,25 @@ wrangler.toml.bak
 # ─── Build artifacts ────────────────────────────────────────
 dist/
 build/
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+scratch/
+test-unzip/
+test-unzip-valid/
+*.mp4
+*.idsig
+*.rsa
+*.pem
 
 # ─── PWABuilder packages — NE JAMAIS COMMITTER ──────────────
 # Contient les keystore.bin + mots de passe = signature Play Store
 # Si on perd ces fichiers, on ne peut PLUS jamais update l'app sur Play.
 # DOIT être sauvegardé hors-Git (Drive / Dropbox / clé USB).
 *.zip
+*.apk
+*.aab
 *-package/
 *.keystore
 *-keystore-passwords.txt
@@ -26,3 +39,6 @@ build/
 .env.*
 *.secret
 secrets/
+
+preview-public/
+

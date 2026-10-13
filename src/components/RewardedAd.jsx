@@ -1,74 +1,82 @@
-/* ═══════════════════════════════════════════════════════════════════
-   Super Tetris — RewardedAd
-   ═══════════════════════════════════════════════════════════════════
-   Stub V1 pour les pubs récompensées.
-   En V1 : on simule avec un compteur 5s + bouton "Skip" désactivé.
-   En V2 : on intégrera AdMob (via Capacitor ou WebView native).
-
-   API attendue :
-     <RewardedAd
-       reward={{ type: "continue" }}    // ou { type: "booster", id: "freeze" }
-       onComplete={() => ...}
-       onSkip={() => ...}                // si V1 dev mode permet de skip
-     />
-
-   En production, après l'intégration AdMob, on remplace cette stub par :
-     - Appel à AdMob.showRewardedAd()
-     - Listen pour onRewardEarned
-     - Fallback: si pas de pub disponible, on peut donner la reward "free"
-       1 fois/jour pour pas frustrer l'utilisateur.
-   ═══════════════════════════════════════════════════════════════════ */
-
 const { useState: useStateRA, useEffect: useEffectRA } = React;
 
+/*
+  Simulateur UX des videos interstitielles recompensees.
+  Contrat a conserver lors du branchement Google/AdMob :
+  - onComplete = appele uniquement quand le SDK confirme la recompense.
+  - onSkip = aucune recompense accordee.
+  - reward decrit le gain attendu par le flux appelant (shop, wheel, game over).
+*/
 function RewardedAd({ reward, onComplete, onSkip, durationSec }) {
   const total = durationSec || 5;
   const [remaining, setRemaining] = useStateRA(total);
+  const [useSimulator, setUseSimulator] = useStateRA(false);
+  const done = remaining <= 0;
+  const rewardLabel = describeReward(reward);
+  const progress = Math.max(0, Math.min(1, (total - remaining) / total));
 
+  // Tente d'abord de diffuser une vraie pub via STAdMob
   useEffectRA(() => {
+    let active = true;
+    if (window.STAdMob && typeof window.STAdMob.showRewardedAd === "function") {
+      window.STAdMob.showRewardedAd({
+        reward,
+        onComplete: () => {
+          if (active && typeof onComplete === "function") onComplete();
+        },
+        onSkip: () => {
+          if (active && typeof onSkip === "function") onSkip();
+        },
+        onFallback: () => {
+          if (active) setUseSimulator(true);
+        },
+      });
+    } else {
+      setUseSimulator(true);
+    }
+    return () => { active = false; };
+  }, [reward]);
+
+  // Boucle de décompte du simulateur (uniquement si AdMob est en fallback)
+  useEffectRA(() => {
+    if (!useSimulator) return;
     if (remaining <= 0) {
       if (typeof onComplete === "function") onComplete();
       return;
     }
     const id = setTimeout(() => setRemaining((r) => r - 1), 1000);
     return () => clearTimeout(id);
-  }, [remaining, onComplete]);
-
-  const rewardLabel = describeReward(reward);
+  }, [remaining, useSimulator, onComplete]);
 
   return (
     <div style={SRA.root}>
       <div style={SRA.card}>
-        <div style={SRA.adLabel}>📺 PUBLICITÉ</div>
+        <div style={SRA.adLabel}>VIDEO INTERSTITIELLE</div>
 
         <div style={SRA.preview}>
-          <div style={SRA.previewIcon}>🎮</div>
-          <div style={SRA.previewText}>
-            Découvre d'autres jeux CloneX Studio
+          <div style={SRA.videoTopBar}>
+            <span style={SRA.videoDot}></span>
+            <span style={SRA.videoBadge}>PLEIN ECRAN</span>
+          </div>
+          <div style={SRA.previewIcon}>AD</div>
+          <div style={SRA.previewText}>CloneX Studio</div>
+          <div style={SRA.previewSub}>La video doit se terminer pour valider la recompense.</div>
+          <div style={SRA.progressTrack}>
+            <div style={{ ...SRA.progressFill, width: Math.round(progress * 100) + "%" }} />
           </div>
         </div>
 
         <div style={SRA.timer}>
-          {remaining > 0 ? (
-            <>Récompense dans <strong>{remaining}s</strong>…</>
-          ) : (
-            <>✅ Récompense débloquée !</>
-          )}
+          {done ? <>Video terminee - recompense debloquee</> : <>Fin de la video dans <strong>{remaining}s</strong></>}
         </div>
 
         <div style={SRA.rewardBox}>
-          <span style={{ fontSize: 24 }}>🎁</span>
+          <span style={SRA.rewardIcon}>+</span>
           <span style={{ marginLeft: 8 }}>{rewardLabel}</span>
         </div>
 
-        {/* Skip uniquement disponible si la session permet (V1 : oui) */}
-        {typeof onSkip === "function" && remaining > 0 && (
-          <button
-            style={SRA.skipBtn}
-            onClick={onSkip}
-          >
-            Passer la pub
-          </button>
+        {typeof onSkip === "function" && !done && (
+          <button style={SRA.skipBtn} onClick={onSkip}>Quitter la video</button>
         )}
       </div>
     </div>
@@ -76,12 +84,14 @@ function RewardedAd({ reward, onComplete, onSkip, durationSec }) {
 }
 
 function describeReward(reward) {
-  if (!reward) return "Récompense surprise !";
+  if (!reward) return "Recompense surprise";
   if (reward.type === "continue") return "Continuer la partie";
   if (reward.type === "booster") return "+1 booster " + (reward.id || "");
-  if (reward.type === "coins")   return "+" + (reward.amount || 0) + " pièces";
-  if (reward.type === "xp")      return "Boost XP ×2 prochaine partie";
-  return "Récompense !";
+  if (reward.type === "wheelSpin") return "Relancer la roue";
+  if (reward.type === "coins") return "+" + (reward.amount || 0) + " pieces";
+  if (reward.type === "xp") return "Boost XP x2 prochaine partie";
+  if (reward.type === "bonusGame") return "Accès au Jeu Bonus 3D";
+  return "Recompense";
 }
 
 const SRA = {
@@ -106,7 +116,7 @@ const SRA = {
   },
   adLabel: {
     fontSize: 11,
-    fontWeight: 800,
+    fontWeight: 900,
     color: "var(--orange)",
     letterSpacing: 2,
     textAlign: "center",
@@ -115,12 +125,76 @@ const SRA = {
   preview: {
     background: "linear-gradient(135deg, #5b21b6, #1e40af, #7c3aed)",
     borderRadius: 14,
-    padding: "32px 16px",
+    padding: "14px 16px 18px",
     textAlign: "center",
     marginBottom: 16,
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15)",
+    overflow: "hidden",
   },
-  previewIcon: { fontSize: 60, marginBottom: 8 },
-  previewText: { fontSize: 14, color: "#fff", fontWeight: 700 },
+  videoTopBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 10,
+    fontWeight: 900,
+    letterSpacing: 1.2,
+  },
+  videoDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: "var(--red)",
+    boxShadow: "0 0 10px rgba(239,68,68,0.85)",
+  },
+  videoBadge: {
+    padding: "4px 7px",
+    borderRadius: 8,
+    background: "rgba(0,0,0,0.28)",
+    border: "1px solid rgba(255,255,255,0.14)",
+  },
+  previewIcon: {
+    width: 62,
+    height: 62,
+    borderRadius: 16,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 28,
+    color: "#fff",
+    background: "rgba(255,255,255,0.14)",
+    border: "1.5px solid rgba(255,255,255,0.22)",
+  },
+  previewText: {
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 22,
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  previewSub: {
+    marginTop: 5,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: 800,
+  },
+  progressTrack: {
+    height: 7,
+    borderRadius: 100,
+    background: "rgba(0,0,0,0.35)",
+    overflow: "hidden",
+    marginTop: 18,
+    border: "1px solid rgba(255,255,255,0.12)",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 100,
+    background: "linear-gradient(90deg, var(--gold), var(--orange))",
+    boxShadow: "0 0 12px rgba(255,210,63,0.45)",
+    transition: "width 0.35s ease",
+  },
   timer: {
     textAlign: "center",
     fontSize: 14,
@@ -137,7 +211,20 @@ const SRA = {
     padding: "10px 16px",
     marginBottom: 12,
     color: "var(--gold)",
-    fontWeight: 700,
+    fontWeight: 900,
+  },
+  rewardIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: "50%",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "linear-gradient(180deg, var(--gold), #d97706)",
+    color: "#2d1600",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
+    fontSize: 18,
+    boxShadow: "0 2px 0 #92400e",
   },
   skipBtn: {
     width: "100%",
@@ -147,7 +234,7 @@ const SRA = {
     borderRadius: 12,
     fontSize: 13,
     color: "rgba(255,255,255,0.6)",
-    fontWeight: 700,
+    fontWeight: 800,
   },
 };
 

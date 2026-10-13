@@ -234,6 +234,26 @@
 
   function isPlaying() { return state.playing; }
 
+  /* v1.16+ round 3 (audit BUG-AUDIT-ST-7) :
+     Auto-pause music quand l'app passe en background. Avant : `setInterval`
+     continuait à tourner → consommation CPU/batterie inutile + au retour focus
+     `schedTime` était obsolète (basé sur `c.currentTime` figé) → jingle décalé.
+     Maintenant : on pause la musique sur visibilitychange hidden, et on relance
+     proprement (avec recalibration des timings) au retour. */
+  var _wasPlayingBeforeHide = false;
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", function() {
+      if (document.hidden) {
+        _wasPlayingBeforeHide = state.playing;
+        if (state.playing) stop();
+      } else if (_wasPlayingBeforeHide && isOn()) {
+        /* Reprend la musique avec timings frais */
+        _wasPlayingBeforeHide = false;
+        start();
+      }
+    });
+  }
+
   window.STMusic = {
     start: start,
     stop: stop,

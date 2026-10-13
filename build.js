@@ -6,9 +6,6 @@
    bundle est ES5+ pur, prêt à exécuter dans tous les navigateurs).
 
    Run : node build.js
-
-   Pattern hérité de Byer (qui a la même approche pour ne pas dépendre
-   de Babel standalone côté client — trop lent sur mobile bas de gamme).
    ═══════════════════════════════════════════════════════════════════ */
 
 const fs = require('fs');
@@ -37,23 +34,32 @@ const FILES = [
   // Boosters (logique fonctionnelle des 4 boosters consommables)
   'src/game/boosters.js',
   // VFX boosters (laser beams, meteor trails, freeze flakes, magnet waves)
-  // — port FIDÈLE de Tetroid (v1.12 BUG-ST-3)
   'src/game/booster-fx.js',
+  // Moteur 3D Crush pour le Jeu Bonus
+  'src/game/crush-engine.js',
+
+  // ─── Services (Google Play Billing & AdMob) ──────────────────
+  'src/services/billing.js',
+  'src/services/admob.js',
 
   // ─── Hooks (window.useXxx exports) ─────────────────────────
   'src/hooks/useGameLoop.js',
   'src/hooks/useStorage.js',
 
   // ─── Components (window.Xxx exports, ordre de dépendance) ─
+  'src/i18n.js',
   'src/components/Starfield.jsx',
   'src/components/HUD.jsx',
   'src/components/BoosterButtons.jsx',
   'src/components/RewardedAd.jsx',
   'src/components/LoadingScreen.jsx',
   'src/components/HomeScreen.jsx',
+  'src/components/BonusGameScreen.jsx',
   'src/components/GameScreen.jsx',
   'src/components/GameOverScreen.jsx',
   'src/components/FortuneWheel.jsx',
+  'src/components/ShopScreen.jsx',
+  'src/components/StatsScreen.jsx',
   'src/components/SettingsScreen.jsx',
 
   // ─── App + entry point ────────────────────────────────────
@@ -98,9 +104,60 @@ const SEPARATOR = '\n\n/* ──────────────────
     }
   }
 
-  const bundle = parts.join(SEPARATOR);
+  let bundle = parts.join(SEPARATOR);
+
+  try {
+    const terser = require('terser');
+    const minifyResult = await terser.minify(bundle, {
+      compress: {
+        drop_console: false,
+        passes: 2,
+      },
+      mangle: true,
+      format: { comments: false },
+    });
+    if (minifyResult.code) {
+      bundle = minifyResult.code;
+    }
+  } catch (e) {
+    console.warn('  ⚠ Terser non disponible, bundle non minifié :', e.message);
+  }
+
   const out = path.join(__dirname, 'bundle.js');
   fs.writeFileSync(out, bundle, 'utf8');
+
+  // Synchronisation automatique vers les cibles de déploiement
+  function copyRecursiveSync(src, dest) {
+    if (!fs.existsSync(src)) return;
+    const stat = fs.statSync(src);
+    if (stat.isDirectory()) {
+      if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+      for (const child of fs.readdirSync(src)) {
+        copyRecursiveSync(path.join(src, child), path.join(dest, child));
+      }
+    } else {
+      if (!fs.existsSync(path.dirname(dest))) fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(src, dest);
+    }
+  }
+
+  const syncDirs = [
+    path.join(__dirname, 'www'),
+    path.join(__dirname, 'preview-public'),
+    path.join(__dirname, 'android', 'app', 'src', 'main', 'assets', 'public'),
+  ];
+  for (const dir of syncDirs) {
+    if (fs.existsSync(dir)) {
+      fs.writeFileSync(path.join(dir, 'bundle.js'), bundle, 'utf8');
+      const staticFiles = ['index.html', '404.html', 'privacy.html', 'support.html', 'sw.js', 'manifest.json'];
+      for (const f of staticFiles) {
+        const s = path.join(__dirname, f);
+        if (fs.existsSync(s)) fs.copyFileSync(s, path.join(dir, f));
+      }
+      copyRecursiveSync(path.join(__dirname, 'vendor'), path.join(dir, 'vendor'));
+      copyRecursiveSync(path.join(__dirname, 'src', 'styles'), path.join(dir, 'src', 'styles'));
+    }
+  }
 
   const dt = Date.now() - t0;
   const kb = (bundle.length / 1024).toFixed(1);

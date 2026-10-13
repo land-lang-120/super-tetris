@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "super-tetris",
+  "account_id": "e1a0f48f414f42d473e153cf600118e7",
   "compatibility_date": "2026-05-03",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {

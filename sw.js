@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════
-   Super Tetris — Service Worker v1.8
+   Super Tetris — Service Worker v1.23.0
    Network-first pour HTML/JS/CSS (bundle, index)
-   Cache-first pour les libs et icônes (rarement modifiés)
+   Cache-first pour les libs, polices et icônes
    ═══════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'super-tetris-v1.13';
+const CACHE_NAME = 'super-tetris-v1.23.0';
 
 const ASSETS = [
   './',
@@ -12,7 +12,12 @@ const ASSETS = [
   './manifest.json',
   './bundle.js',
   './src/styles/variables.css',
+  './src/styles/fonts.css',
   './src/styles/global.css',
+  './vendor/fonts/lilita-one.woff2',
+  './vendor/fonts/nunito-variable.woff2',
+  './vendor/react.production.min.js',
+  './vendor/react-dom.production.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable.png',

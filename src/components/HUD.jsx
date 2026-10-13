@@ -21,6 +21,7 @@ const { useEffect: useEffectHUD, useRef: useRefHUD } = React;
 
 function HUD({ time, targetLines, currentLines, score, level, combo, nextPiece, holdPiece }) {
   const nextCanvasRef = useRefHUD(null);
+  const tr = (key, params) => window.STI18n ? window.STI18n.t(key, params) : key;
 
   useEffectHUD(() => {
     const cv = nextCanvasRef.current;
@@ -37,18 +38,18 @@ function HUD({ time, targetLines, currentLines, score, level, combo, nextPiece, 
           TIME géré séparément en overlay par GameScreen. */}
       <div style={SHUD.midRow}>
         <BadgeStat
-          label="LVL"
+          label={tr("hudLevel")}
           value={level || 1}
           color="var(--purple-l)"
         />
         <BadgeStat
-          label="COMBO"
+          label={tr("combo")}
           value={combo > 0 ? "×" + combo : "×0"}
           color={combo > 0 ? "var(--gold)" : "rgba(255,255,255,0.5)"}
         />
-        <BadgeMini label="NEXT" ref_={nextCanvasRef} />
+        <BadgeMini label={tr("nextPiece")} ref_={nextCanvasRef} />
         <BadgeStat
-          label="SCORE"
+          label={tr("score")}
           value={formatNum(score)}
           color="var(--gold)"
           flex={2}
@@ -139,7 +140,7 @@ const SHUD = {
     marginBottom: 2,
   },
   badgeValue: {
-    fontFamily: "'Lilita One', cursive",
+    fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
     fontSize: 20,
     lineHeight: 1.1,
     textShadow: "0 1px 0 rgba(0,0,0,0.4), 0 0 8px currentColor",

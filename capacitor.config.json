@@ -1,0 +1,14 @@
+{
+  "appId": "com.clonex.supertetris",
+  "appName": "Super Tetris",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

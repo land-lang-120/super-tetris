@@ -1,0 +1,26 @@
+/* === SUPER TETRIS — Local Offline Fonts ===
+   Polices embarquées localement dans le package (100% offline, zero-latence) :
+   - Lilita One : police arcade/titres officielle (très grasse et ronde)
+   - Nunito (Variable 200-1000) : police d'interface avec support complet des graisses 700, 800, 900
+   Garantit que le texte reste TOUJOURS gras et stylé même sans connexion internet ou dans la WebView native.
+*/
+
+@font-face {
+  font-family: 'Lilita One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../vendor/fonts/lilita-one.woff2') format('woff2'),
+       url('./vendor/fonts/lilita-one.woff2') format('woff2'),
+       url('/vendor/fonts/lilita-one.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 200 1000;
+  font-display: swap;
+  src: url('../../vendor/fonts/nunito-variable.woff2') format('woff2'),
+       url('./vendor/fonts/nunito-variable.woff2') format('woff2'),
+       url('/vendor/fonts/nunito-variable.woff2') format('woff2');
+}

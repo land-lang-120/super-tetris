@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Support — Super Tetris</title>
+  <meta name="theme-color" content="#7c3aed" />
+  <link rel="icon" href="/icons/icon-192.png" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0; padding: 0;
+      background: #0b1238; color: #e8eaf6;
+      line-height: 1.55;
+    }
+    header {
+      background: linear-gradient(135deg, #1a1f4d 0%, #2a1d5e 100%);
+      border-bottom: 1px solid #2d3478;
+      padding: 16px 20px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header .row {
+      max-width: 760px; margin: 0 auto;
+      display: flex; align-items: center; gap: 12px;
+    }
+    header img { width: 32px; height: 32px; border-radius: 8px; }
+    header span { font-weight: 700; font-size: 18px; color: #ffd23f; }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 22px 60px; }
+    h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.4px; margin: 0 0 6px; color: #ffffff; }
+    .last-updated { font-size: 13px; color: #9ba0d4; margin-bottom: 28px; }
+    h2 { font-size: 19px; font-weight: 700; margin: 32px 0 8px; color: #ffd23f; }
+    p, li { font-size: 15px; color: #c5c9ee; }
+    a { color: #7c3aed; font-weight: 600; text-decoration: none; }
+    a:hover { color: #a78bfa; }
+    .faq {
+      background: #1a1f4d;
+      border: 1px solid #2d3478;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 12px 0;
+    }
+    .faq h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; color: #ffffff; }
+    .contact-card {
+      background: linear-gradient(135deg, #7c3aed 0%, #4f1d9e 100%);
+      color: #ffffff;
+      border-radius: 16px;
+      padding: 22px;
+      margin: 24px 0 18px;
+    }
+    .contact-card h2 { color: #ffd23f; margin-top: 0; }
+    .contact-card p { color: #f0e6ff; font-size: 14px; }
+    .contact-card a {
+      display: inline-block;
+      background: #ffd23f;
+      color: #1a1f4d;
+      padding: 11px 20px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+    footer {
+      max-width: 760px; margin: 0 auto;
+      padding: 18px 22px 40px;
+      font-size: 13px; color: #9ba0d4;
+      border-top: 1px solid #2d3478;
+    }
+    strong { color: #ffffff; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <img src="/icons/icon-192.png" alt="Super Tetris" />
+      <span>Super Tetris</span>
+    </div>
+  </header>
+  <main>
+    <h1>Centre d'aide Super Tetris</h1>
+    <p class="last-updated">Une question ? Un bug ? On est là.</p>
+
+    <div class="contact-card">
+      <h2>Contact direct</h2>
+      <p>Réponse sous 48h ouvrées (lundi-samedi)</p>
+      <a href="mailto:pinolando120@gmail.com?subject=Aide%20Super%20Tetris">📧 Écrire à l'équipe</a>
+    </div>
+
+    <h2>Comment jouer</h2>
+
+    <div class="faq">
+      <h3>Quelles sont les commandes ?</h3>
+      <p>
+        ◀ ▶ : Déplacer la pièce<br />
+        ▼ : Soft drop (descente accélérée)<br />
+        ▲ ou tap rapide : Hard drop (chute instantanée + bonus de score)<br />
+        Tourner gauche / droite : Rotation SRS officielle<br />
+        Hold : Mettre la pièce de côté pour plus tard
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>C'est quoi un T-Spin ?</h3>
+      <p>
+        Quand tu rotates une pièce T dans un trou en forme de T (3 coins du T
+        sont bloqués), tu déclenches un <strong>T-Spin</strong> qui rapporte
+        jusqu'à <strong>1600 × niveau</strong> de points. C'est la technique
+        des pros de Tetris.
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>Comment marche le combo et back-to-back ?</h3>
+      <p>
+        <strong>Combo</strong> = clear plusieurs lignes en pièces consécutives
+        (×2, ×3, ×4… multiplicateur croissant).<br />
+        <strong>Back-to-back</strong> = enchaîner 2 Tetris (4 lignes) ou 2
+        T-Spins sans clear simple entre les deux → bonus ×1.5.
+      </p>
+    </div>
+
+    <h2>Boosters</h2>
+
+    <div class="faq">
+      <h3>Comment débloquer les boosters ?</h3>
+      <p>
+        Tu gagnes des boosters via :<br />
+        • La <strong>roue de la fortune quotidienne</strong> (1 spin gratuit
+          toutes les 24h)<br />
+        • Le système de <strong>rang</strong> (récompense de palier)<br />
+        • Tes <strong>pièces or</strong> que tu peux dépenser dans la boutique
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>À quoi servent les 4 boosters ?</h3>
+      <p>
+        ❄️ <strong>Freeze</strong> : stoppe la chute pendant 15 secondes pour
+        réfléchir<br />
+        ⚡ <strong>Laser</strong> : détruit jusqu'à 4 lignes basses + fait
+        tomber les blocs au-dessus<br />
+        ☄️ <strong>Meteor</strong> : 10 météorites détruisent le top de chaque
+        colonne<br />
+        🧲 <strong>Magnet</strong> : compresse tous les blocs vers le bas et
+        élimine les trous
+      </p>
+    </div>
+
+    <h2>Score & rangs</h2>
+
+    <div class="faq">
+      <h3>Comment progresser dans les rangs ?</h3>
+      <p>
+        🥉 Recrue → Bronze → Argent → 🥇 Or → 💎 Diamant → Maître → 👑 Légende
+        → Grand Maître.<br />
+        Chaque rang nécessite un certain nombre de points cumulés sur
+        l'ensemble de tes parties. Visible dans Profil → Rang.
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>Système de scoring officiel</h3>
+      <p>
+        • Single (1 ligne) : 100 × niveau<br />
+        • Double (2 lignes) : 300 × niveau<br />
+        • Triple (3 lignes) : 500 × niveau<br />
+        • <strong>Tetris (4 lignes)</strong> : 800 × niveau<br />
+        • T-Spin Single : 800 × niveau<br />
+        • T-Spin Double : 1200 × niveau<br />
+        • <strong>T-Spin Triple</strong> : 1600 × niveau<br />
+        • Soft drop : 1 point par ligne descendue<br />
+        • Hard drop : 2 points par ligne
+      </p>
+    </div>
+
+    <h2>Problèmes techniques</h2>
+
+    <div class="faq">
+      <h3>Le jeu rame / lag</h3>
+      <p>
+        Désactive les particules dans Paramètres → Performances. Sur les très
+        vieux téléphones (Android 8 et avant), passe en mode "Performance" qui
+        réduit les effets visuels.
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>La musique ne marche pas</h3>
+      <p>
+        Va dans Paramètres → Audio → vérifie que le volume musique est à 100%.
+        Si ton téléphone est en mode silencieux, le jeu n'émet pas de son
+        (comportement Android standard).
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>J'ai perdu mon score / mes pièces or</h3>
+      <p>
+        Les sauvegardes sont LOCALES (sur ton téléphone uniquement, V1).
+        Désinstaller le jeu efface tout. La synchronisation cloud arrivera
+        en V2 (avec compte Google optionnel).
+      </p>
+    </div>
+
+    <div class="faq">
+      <h3>Comment supprimer toutes mes données</h3>
+      <p>
+        Paramètres Android → Applications → Super Tetris → Stockage → Effacer
+        les données.<br />
+        OU : désinstalle le jeu (tout est effacé automatiquement).
+      </p>
+    </div>
+
+    <h2>Bug ou suggestion</h2>
+    <div class="faq">
+      <p>
+        Tu as trouvé un bug ou tu as une idée pour améliorer Super Tetris ?
+        <a href="mailto:pinolando120@gmail.com?subject=Bug%20Super%20Tetris">Écris-nous</a>
+        avec :<br />
+        • Description du problème<br />
+        • Capture d'écran si possible<br />
+        • Modèle de ton téléphone + version Android
+      </p>
+    </div>
+  </main>
+  <footer>
+    © 2026 CloneX Studio — Cameroun 🇨🇲 ·
+    <a href="/">Retour au jeu</a> ·
+    <a href="/privacy">Confidentialité</a>
+  </footer>
+</body>
+</html>

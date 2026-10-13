@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en" translate="no" class="notranslate">
+<head>
+<meta charset="UTF-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Super Tetris - The Iconic Puzzle Game</title>
+<meta name="description" content="Super Tetris - The legendary puzzle game with boosters, daily fortune wheel and iconic music!">
+<meta name="theme-color" content="#0b1238">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
+
+<link rel="preload" href="vendor/fonts/lilita-one.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="vendor/fonts/nunito-variable.woff2" as="font" type="font/woff2" crossorigin>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&family=Bungee&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="src/styles/variables.css">
+<link rel="stylesheet" href="src/styles/fonts.css">
+<link rel="stylesheet" href="src/styles/global.css">
+
+<style>
+  @font-face {
+    font-family: 'Lilita One';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('vendor/fonts/lilita-one.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Nunito';
+    font-style: normal;
+    font-weight: 200 1000;
+    font-display: swap;
+    src: url('vendor/fonts/nunito-variable.woff2') format('woff2');
+  }
+  html, body { height:100%; margin:0; background:#0b1238; }
+  #root { height:100%; display:flex; }
+  body {
+    font-family:'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 800;
+    color:#fff;
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none;
+  }
+  button { font-family: inherit; font-weight: 800; }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="vendor/react.production.min.js"></script>
+<script src="vendor/react-dom.production.min.js"></script>
+
+<script src="bundle.js?v=1.23.0"></script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+  function enterFullscreen() {
+    try {
+      const el = document.documentElement;
+      const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      if (fn) fn.call(el).catch(function(){});
+    } catch (_) {}
+  }
+  document.addEventListener('touchstart', enterFullscreen, { once: true, passive: true });
+  document.addEventListener('click', enterFullscreen, { once: true });
+</script>
+
+</body>
+</html>

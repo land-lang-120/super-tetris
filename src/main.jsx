@@ -56,10 +56,10 @@ class STErrorBoundary extends React.Component {
           fontSize: 40,
         }}>⚠️</div>
         <h1 style={{
-          fontFamily: "'Lilita One', cursive",
+          fontFamily: "'Lilita One', 'Nunito', system-ui, sans-serif",
           fontSize: 28,
           marginBottom: 8,
-        }}>Oups, un souci technique</h1>
+        }}>Oops, something went wrong</h1>
         <p style={{
           fontSize: 14,
           color: "rgba(255,255,255,0.7)",
@@ -67,13 +67,13 @@ class STErrorBoundary extends React.Component {
           marginBottom: 24,
           lineHeight: 1.5,
         }}>
-          Le jeu a rencontré une erreur inattendue. Recharge pour continuer.
+          The game encountered an unexpected error. Reload to continue.
         </p>
         <button
           onClick={this.handleReload}
           className="btn-3d"
           style={{ minWidth: 200 }}
-        >Recharger</button>
+        >Reload</button>
         {this.state.error && (
           <pre style={{
             marginTop: 24,
