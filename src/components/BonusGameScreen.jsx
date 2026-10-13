@@ -15,6 +15,27 @@
 
 const { useState: useStateBonus, useEffect: useEffectBonus, useRef: useRefBonus, useCallback: useCallbackBonus } = React;
 
+function NextPieceMiniCanvas({ pieceName }) {
+  const canvasRef = useRefBonus(null);
+
+  useEffectBonus(() => {
+    const cv = canvasRef.current;
+    if (!cv || !window.STRender) return;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    window.STRender.drawMiniPiece(ctx, pieceName || null, 10);
+  }, [pieceName]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={48}
+      height={32}
+      style={{ display: "block", marginTop: 2 }}
+    />
+  );
+}
+
 function BonusGameScreen({ onComplete, onClose }) {
   const canvasRef = useRefBonus(null);
   const engineRef = useRefBonus(null);
@@ -336,28 +357,11 @@ function BonusGameScreen({ onComplete, onClose }) {
           onPointerCancel={handlePointerUp}
         />
 
-        {/* Aperçu Prochaine Pièce (Next Piece HUD) */}
+        {/* Aperçu Prochaine Pièce (Next Piece HUD) — 100% PARITÉ 3D AVEC LE JEU DE BASE */}
         {gameState.nextPiece && (
           <div style={SB.nextPieceBadge}>
             <div style={SB.nextPieceLabel}>SUIVANT</div>
-            <div style={SB.nextPiecePreview}>
-              {gameState.nextPiece.matrix.map((row, r) => (
-                <div key={r} style={{ display: "flex" }}>
-                  {row.map((cell, c) => (
-                    <div
-                      key={c}
-                      style={{
-                        width: 10,
-                        height: 10,
-                        margin: 1,
-                        borderRadius: 2,
-                        background: cell ? gameState.nextPiece.color : "transparent",
-                      }}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
+            <NextPieceMiniCanvas pieceName={gameState.nextPiece.name || gameState.nextPiece.type} />
           </div>
         )}
       </div>

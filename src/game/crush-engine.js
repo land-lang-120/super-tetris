@@ -19,7 +19,7 @@
   var ROWS = 20;
   var DANGER_ROW = 2; // Si un bloc dépasse cette ligne, alerte rouge ; ligne 0 = Top-out
 
-  // Palette officielle Super Tetris néon
+  // Palette officielle Super Tetris néon (100% synchronisée avec pieces.js)
   var COLORS = {
     I: "#00d4e0", // Cyan
     O: "#ffd23f", // Or
@@ -29,6 +29,13 @@
     J: "#2563eb", // Bleu
     L: "#f97316", // Orange
   };
+
+  function getColor(key) {
+    if (window.STPieces && typeof window.STPieces.colorOf === "function") {
+      return window.STPieces.colorOf(key);
+    }
+    return COLORS[key] || "#888";
+  }
 
   var COLOR_KEYS = ["I", "O", "T", "S", "Z", "J", "L"];
 
@@ -143,8 +150,9 @@
           if (!isHole) {
             var colorKey = COLOR_KEYS[(c * 2 + r * 3) % COLOR_KEYS.length];
             grid[r][c] = {
-              color: COLORS[colorKey],
+              color: getColor(colorKey),
               key: colorKey,
+              name: colorKey,
               id: "b_" + r + "_" + c,
             };
           }
@@ -153,11 +161,13 @@
     }
 
     /**
-     * Système 7-Bag aléatoire
+     * Système 7-Bag aléatoire (avec synchronisation STPieces)
      */
     function getRandomPiece() {
       if (bag.length === 0) {
-        bag = COLOR_KEYS.slice();
+        bag = (window.STPieces && window.STPieces.PIECE_NAMES)
+          ? window.STPieces.PIECE_NAMES.slice()
+          : COLOR_KEYS.slice();
         // Shuffle bag
         for (var i = bag.length - 1; i > 0; i--) {
           var j = Math.floor(Math.random() * (i + 1));
@@ -167,13 +177,19 @@
         }
       }
       var type = bag.pop();
-      var matrix = SHAPES[type].map(function (row) {
-        return row.slice();
-      });
+      var matrix;
+      if (window.STPieces && typeof window.STPieces.getRotation === "function") {
+        var baseRot = window.STPieces.getRotation(type, 0);
+        matrix = baseRot ? baseRot.map(function (row) { return row.slice(); }) : SHAPES[type].map(function (row) { return row.slice(); });
+      } else {
+        matrix = SHAPES[type].map(function (row) { return row.slice(); });
+      }
       return {
         type: type,
+        name: type,
+        rot: 0,
         matrix: matrix,
-        color: COLORS[type],
+        color: getColor(type),
         x: Math.floor((COLS - matrix[0].length) / 2),
         y: 0,
       };
@@ -249,15 +265,36 @@
 
     function rotateCW() {
       if (state !== "playing" || !currentPiece) return false;
-      var rotated = rotateMatrixCW(currentPiece.matrix);
+      var pieceName = currentPiece.name || currentPiece.type;
+      var fromRot = currentPiece.rot || 0;
+      var nextRot = (fromRot + 1) % 4;
 
-      // Wall-kick simplifiés
-      var kicks = [0, -1, 1, -2, 2];
+      var rotated = null;
+      if (window.STPieces && typeof window.STPieces.getRotation === "function") {
+        rotated = window.STPieces.getRotation(pieceName, nextRot);
+      }
+      if (!rotated) {
+        rotated = rotateMatrixCW(currentPiece.matrix);
+      }
+
+      // Wall-kicks officiels SRS via STPieces ou fallback
+      var kicks = null;
+      if (window.STPieces && typeof window.STPieces.getWallKicks === "function") {
+        kicks = window.STPieces.getWallKicks(pieceName, fromRot, nextRot);
+      } else {
+        kicks = [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0]];
+      }
+
       for (var i = 0; i < kicks.length; i++) {
-        var kx = currentPiece.x + kicks[i];
-        if (!checkCollision(rotated, kx, currentPiece.y)) {
+        var dx = kicks[i][0];
+        var dy = kicks[i][1];
+        var kx = currentPiece.x + dx;
+        var ky = currentPiece.y + dy;
+        if (!checkCollision(rotated, kx, ky)) {
           currentPiece.matrix = rotated;
+          currentPiece.rot = nextRot;
           currentPiece.x = kx;
+          currentPiece.y = ky;
           if (window.STAudio) window.STAudio.play("rotate");
           return true;
         }
@@ -321,6 +358,7 @@
               grid[gy][gx] = {
                 color: currentPiece.color,
                 key: currentPiece.type,
+                name: currentPiece.name || currentPiece.type,
                 id: "p_" + Date.now() + "_" + r + "_" + c,
               };
             }
@@ -371,8 +409,9 @@
         } else {
           var colorKey = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
           newRow.push({
-            color: COLORS[colorKey],
+            color: getColor(colorKey),
             key: colorKey,
+            name: colorKey,
             id: "wave_" + Date.now() + "_" + col,
           });
         }
@@ -684,28 +723,26 @@
         ctx.translate(sx, sy);
       }
 
-      // Fond du plateau de jeu
-      ctx.fillStyle = "#070c24";
+      // Fond du plateau de jeu (parité exacte avec le jeu de base render.js)
+      var boardGrad = ctx.createLinearGradient(originX, originY, originX, originY + boardH);
+      boardGrad.addColorStop(0, "#0a0e2a");
+      boardGrad.addColorStop(1, "#0d1530");
+      ctx.fillStyle = boardGrad;
       ctx.fillRect(originX, originY, boardW, boardH);
 
-      // Cadre néon du plateau
-      ctx.strokeStyle = "rgba(124, 58, 237, 0.4)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(originX, originY, boardW, boardH);
-
-      // Grille discrète
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+      // Grille subtile violette (parité exacte avec le jeu de base)
+      ctx.strokeStyle = "rgba(124, 58, 237, 0.1)";
       ctx.lineWidth = 1;
-      for (var c = 1; c < COLS; c++) {
+      for (var c = 0; c <= COLS; c++) {
         ctx.beginPath();
-        ctx.moveTo(originX + c * cellSize, originY);
-        ctx.lineTo(originX + c * cellSize, originY + boardH);
+        ctx.moveTo(originX + c * cellSize + 0.5, originY);
+        ctx.lineTo(originX + c * cellSize + 0.5, originY + boardH);
         ctx.stroke();
       }
-      for (var r = 1; r < ROWS; r++) {
+      for (var r = 0; r <= ROWS; r++) {
         ctx.beginPath();
-        ctx.moveTo(originX, originY + r * cellSize);
-        ctx.lineTo(originX + boardW, originY + r * cellSize);
+        ctx.moveTo(originX, originY + r * cellSize + 0.5);
+        ctx.lineTo(originX + boardW, originY + r * cellSize + 0.5);
         ctx.stroke();
       }
 
@@ -722,7 +759,7 @@
       ctx.stroke();
       ctx.restore();
 
-      // Rendu des blocs fixés dans la grille
+      // Rendu des blocs fixés dans la grille (100% parité avec drawCell)
       for (var gr = 0; gr < ROWS; gr++) {
         for (var gc = 0; gc < COLS; gc++) {
           var cell = grid[gr][gc];
@@ -734,7 +771,7 @@
         }
       }
 
-      // Ghost Piece (Ombre de visée)
+      // Ghost Piece (Ombre de visée 100% parité STRender.drawGhostCell)
       if (currentPiece && state === "playing") {
         var gy = getGhostY();
         for (var pr = 0; pr < currentPiece.matrix.length; pr++) {
@@ -747,7 +784,7 @@
           }
         }
 
-        // Pièce active en cours de chute
+        // Pièce active en cours de chute (100% parité avec drawCell)
         for (var cr = 0; cr < currentPiece.matrix.length; cr++) {
           for (var cc = 0; cc < currentPiece.matrix[cr].length; cc++) {
             if (currentPiece.matrix[cr][cc]) {
@@ -765,50 +802,94 @@
       // Particules lumineuses
       drawParticles(ctx, originX, originY, cellSize, particles);
 
+      // Bordure violette néon autour du board (parité exacte avec render.js)
+      ctx.strokeStyle = "rgba(124, 58, 237, 0.6)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(originX, originY, boardW, boardH);
+
       ctx.restore();
     }
 
     /**
-     * Rendu d'un bloc 3D avec biseau et réflexion
+     * Rendu d'une cellule 3D bombée style "bouton brillant"
+     * (100% PARITÉ VISUELLE AVEC LE JEU DE BASE render.js drawCell)
      */
     function draw3DBlock(ctx, x, y, size, color) {
-      var depth = Math.max(3, Math.floor(size * 0.16));
+      if (window.STRender && typeof window.STRender.drawCell === "function") {
+        window.STRender.drawCell(ctx, x, y, size, color, false);
+        return;
+      }
 
-      // Ombre portée
-      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-      ctx.fillRect(x + 2, y + depth + 1, size - 2, size - 2);
-
-      // Face inférieure biseautée
-      ctx.fillStyle = shadeColor(color, -40);
-      ctx.fillRect(x, y + depth, size, size);
-
-      // Face principale
+      // 1) Base solide
       ctx.fillStyle = color;
       ctx.fillRect(x, y, size, size);
 
-      // Dégradé spéculaire 3D
-      var grad = ctx.createLinearGradient(x, y, x + size, y + size);
-      grad.addColorStop(0, "rgba(255, 255, 255, 0.45)");
-      grad.addColorStop(0.5, "rgba(255, 255, 255, 0.0)");
-      grad.addColorStop(1, "rgba(0, 0, 0, 0.35)");
-      ctx.fillStyle = grad;
+      // 2) Gradient diagonal "bombé" : reflet haut-gauche → ombre bas-droite
+      var grd = ctx.createLinearGradient(x, y, x + size, y + size);
+      grd.addColorStop(0, "rgba(255,255,255,0.50)");
+      grd.addColorStop(0.45, "rgba(255,255,255,0.00)");
+      grd.addColorStop(1, "rgba(0,0,0,0.40)");
+      ctx.fillStyle = grd;
       ctx.fillRect(x, y, size, size);
 
-      // Bordure fine
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+      // 3) Bandeau reflet supérieur (effet "verre vitré")
+      var topGlow = ctx.createLinearGradient(x, y, x, y + size * 0.45);
+      topGlow.addColorStop(0, "rgba(255,255,255,0.55)");
+      topGlow.addColorStop(0.6, "rgba(255,255,255,0.10)");
+      topGlow.addColorStop(1, "rgba(255,255,255,0.00)");
+      ctx.fillStyle = topGlow;
+      ctx.fillRect(x + size * 0.1, y + size * 0.06, size * 0.8, size * 0.4);
+
+      // 4) Inner shadow bas
+      var bot = ctx.createLinearGradient(x, y + size * 0.6, x, y + size);
+      bot.addColorStop(0, "rgba(0,0,0,0.00)");
+      bot.addColorStop(1, "rgba(0,0,0,0.35)");
+      ctx.fillStyle = bot;
+      ctx.fillRect(x, y + size * 0.6, size, size * 0.4);
+
+      // 5) Reflet ponctuel rond en haut-gauche (style "highlight de bille")
+      var spot = ctx.createRadialGradient(
+        x + size * 0.3,
+        y + size * 0.28,
+        0,
+        x + size * 0.3,
+        y + size * 0.28,
+        size * 0.45
+      );
+      spot.addColorStop(0, "rgba(255,255,255,0.55)");
+      spot.addColorStop(0.5, "rgba(255,255,255,0.12)");
+      spot.addColorStop(1, "rgba(255,255,255,0.00)");
+      ctx.fillStyle = spot;
+      ctx.fillRect(x, y, size, size);
+
+      // 6) Bordure interne brillante (cerclage clair façon bombée)
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 1.5, y + 1.5, size - 3, size - 3);
+
+      // 7) Bordure externe sombre (séparation nette entre cellules)
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
     }
 
+    /**
+     * Dessine une cellule "ghost" (100% PARITÉ avec STRender.drawGhostCell)
+     */
     function drawGhostBlock(ctx, x, y, size, color) {
+      if (window.STRender && typeof window.STRender.drawGhostCell === "function") {
+        window.STRender.drawGhostCell(ctx, x, y, size, color);
+        return;
+      }
       ctx.save();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 3]);
-      ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
+      ctx.globalAlpha = 0.25;
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.12;
-      ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
+      ctx.fillRect(x, y, size, size);
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
       ctx.restore();
     }
 
@@ -818,18 +899,33 @@
         var vx = ox + v.x * cs;
         var vy = oy + v.y * cs;
         var sz = v.size * cs * Math.max(0.2, v.life);
+        var hsz = sz * 0.5;
 
         ctx.save();
         ctx.translate(vx, vy);
         ctx.rotate(v.rotZ);
-
-        ctx.fillStyle = v.color;
         ctx.globalAlpha = Math.min(1, v.life * 1.3);
-        ctx.fillRect(-sz * 0.5, -sz * 0.5, sz, sz);
 
-        // Highlight
-        ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-        ctx.fillRect(-sz * 0.5, -sz * 0.5, sz, sz * 0.35);
+        // Base couleur
+        ctx.fillStyle = v.color;
+        ctx.fillRect(-hsz, -hsz, sz, sz);
+
+        // Bevel 3D spéculaire
+        var vg = ctx.createLinearGradient(-hsz, -hsz, hsz, hsz);
+        vg.addColorStop(0, "rgba(255, 255, 255, 0.65)");
+        vg.addColorStop(0.45, "rgba(255, 255, 255, 0.0)");
+        vg.addColorStop(1, "rgba(0, 0, 0, 0.45)");
+        ctx.fillStyle = vg;
+        ctx.fillRect(-hsz, -hsz, sz, sz);
+
+        // Highlight supérieur verre
+        ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+        ctx.fillRect(-hsz, -hsz, sz, sz * 0.35);
+
+        // Bordure brillante fine
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-hsz + 0.5, -hsz + 0.5, sz - 1, sz - 1);
 
         ctx.restore();
       }
