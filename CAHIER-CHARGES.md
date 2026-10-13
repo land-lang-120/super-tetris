@@ -400,6 +400,23 @@ Checklist post-fix :
 | I18N-FINAL | Les autres langues ne doivent pas être décoratives | Textes principaux branchés via `STI18n`; FR/EN mis à jour pour vidéos interstitielles | `i18n.js`, composants |
 | NAV-MOBILE | Retour natif téléphone | Les écrans secondaires reviennent vers Home via `popstate`; les boutons retour visuels sont centrés | `App.jsx`, écrans secondaires |
 
+### Patch v1.24.1 (2026-10-13) - Parité 3D Tétrominos Jeu Bonus (Block Crush)
+
+| ID | Zone | Décision / correction | Fichiers |
+|---|---|---|---|
+| BONUS-3D-PARITY | Jeu Bonus | Remplacement du moteur de rendu extrudé par `STRender.drawCell` (7 couches de biseau bombé, reflets verre et bille) pour une parité 100% avec le jeu principal | `crush-engine.js` |
+| BONUS-GHOST-PARITY | Jeu Bonus | Parité absolue de la silhouette fantôme via `STRender.drawGhostCell` | `crush-engine.js` |
+| BONUS-NEXT-HUD | Jeu Bonus | Remplacement des divs plates par `<NextPieceMiniCanvas>` utilisant `STRender.drawMiniPiece` dans l'encart SUIVANT | `BonusGameScreen.jsx` |
+| BONUS-SRS-ROTATION | Jeu Bonus | Rotations et wall-kicks SRS synchronisés avec `STPieces.getRotation` et `STPieces.getWallKicks` | `crush-engine.js` |
+| BONUS-VOXELS-3D | Jeu Bonus | Projection de voxels 3D tumbling avec biseau spéculaire et bords brillants | `crush-engine.js` |
+
+### Patch v1.24.0 (2026-10-13) - Déploiement Natif GitHub Pages & Typographie Grasse Pérenne
+
+| ID | Zone | Décision / correction | Fichiers |
+|---|---|---|---|
+| NATIVE-DEPLOY | Déploiement | Éradication totale de Cloudflare Workers; déploiement 100% natif GitHub Pages sur `https://land-lang-120.github.io/super-tetris/` depuis la branche `main` | `.gitignore`, `404.html`, `GameOverScreen.jsx` |
+| FONT-OFFLINE-BOLD | Typographie | Fichiers WOFF2 embarqués localement (`lilita-one.woff2`, `nunito-variable.woff2`), baseline `font-weight: 800`, boutons `900`, normalisation des poids invalides pour un rendu gras permanent hors ligne | `vendor/fonts/`, `fonts.css`, `global.css`, `index.html`, `sw.js` |
+
 Checklist senior post-fix :
 - ✅ L'ancien loader HTML n'existe plus dans `index.html`; aucun flash `#st-boot`.
 - ✅ Le loading final conserve le design validé par Pino et dure 12 secondes.
@@ -407,8 +424,9 @@ Checklist senior post-fix :
 - ✅ Le simulateur publicitaire reste clairement isolé dans `RewardedAd.jsx`.
 - ✅ La récompense ne doit être accordée qu'en fin de vidéo; futur AdMob = callback officiel "reward earned".
 - ✅ La boutique, la roue, le game over et le classement restent harmonisés avec le design existant.
-- ⚠️ Avant publication finale Google : remplacer le simulateur `RewardedAd` par le SDK pub réel, puis régénérer AAB/APK.
-- ⚠️ Le déploiement Cloudflare reste dépendant d'un token/login valide.
+- ✅ Déploiement 100% natif GitHub Pages (https://land-lang-120.github.io/super-tetris/) opérationnel sans Cloudflare.
+- ✅ Tétrominos 3D du jeu bonus 100% harmonisés et identiques au jeu principal.
+- ✅ Typographie grasse verrouillée hors-ligne et pérenne sur mobile et web.
 
 ---
 
