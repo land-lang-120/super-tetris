@@ -488,10 +488,13 @@
         score += pts;
         cameraShake = Math.min(1.2, 0.4 + completed.length * 0.25 + currentCascade * 0.15);
 
-        // Son harmonieux ascendant selon le niveau de cascade
+        // Fracas prononcé de briques qui se cassent, modulé selon le combo cascade
         if (window.STAudio) {
-          var freq = 320 + currentCascade * 90;
-          window.STAudio.tone(freq, 0.18, "triangle", 0.15);
+          if (typeof window.STAudio.brickBreak === "function") {
+            window.STAudio.brickBreak(completed.length, currentCascade);
+          } else if (typeof window.STAudio.play === "function") {
+            window.STAudio.play(completed.length >= 4 ? "tetris" : "line" + completed.length);
+          }
         }
       } else {
         // Aucune nouvelle ligne : fin de la séquence de cascade

@@ -4,7 +4,7 @@
    Cache-first pour les libs, polices et icônes
    ═══════════════════════════════════════════════════ */
 
-const CACHE_NAME = 'super-tetris-v1.24.1';
+const CACHE_NAME = 'super-tetris-v1.25.0';
 
 const ASSETS = [
   './',
@@ -18,6 +18,7 @@ const ASSETS = [
   './vendor/fonts/nunito-variable.woff2',
   './vendor/react.production.min.js',
   './vendor/react-dom.production.min.js',
+  './vendor/sounds/brick_break.wav',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable.png',

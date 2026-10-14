@@ -1,7 +1,7 @@
 # 🎮 Super Tetris — Cahier de charges
 
 > Le Tetris emblématique réinventé avec 4 boosters fun et la musique iconique
-> Version : **1.24.0** - 2026-10-13 (Pérennisation Typographie Grasse Arcade, Embarquement Polices Hors-ligne & Déploiement Cloudflare)
+> Version : **1.25.0** - 2026-10-14 (Intégration Son Natif Crush Bref 360ms, Désintégration Voxels 3D & Nettoyage Paramètres)
 > URL prod : https://land-lang-120.github.io/super-tetris/
 > Tech : React 18 UMD CDN + Babel build + Terser → bundle.js (95 KB minifié)
 
@@ -636,6 +636,23 @@ Checklist post-fix :
 - ✅ Service Worker v1.23.0 / v1.24.0 cache les polices locales
 - ✅ Déploiement Cloudflare Workers en ligne vérifié et fonctionnel
 - ✅ Build synchronisé automatiquement sur `www/` et les assets natifs Android
+
+### Patch v1.25.0 (2026-10-14) — Son Natif Crush Bref (360ms), Voxels 3D & Nettoyage Paramètres
+
+| # | Type | Description | Résultat | Fichier(s) |
+|---|---|---|---|---|
+| 1 | 🔊 AUDIO | Intégration du son unique "Crush Bref (360ms)" extrait de la vidéo WhatsApp de référence | Son natif percutant, sec et immédiat pour toutes les destructions de briques (`vendor/sounds/brick_break.wav`) | `src/game/audio.js` |
+| 2 | 🧱 VFX | Désintégration des briques en micro-voxels 3D au clear de ligne (parité vidéo Block Crush) | Éclatement en micro-cubes 3D colorés avec biseau spéculaire, tumbling et gravité réaliste | `src/game/particles.js`, `src/components/GameScreen.jsx` |
+| 3 | 🧹 UI | Nettoyage complet de l'écran Paramètres | Suppression de la rubrique "Style d'impact des briques" devenue obsolète | `src/components/SettingsScreen.jsx`, `src/i18n.js` |
+| 4 | 🚀 CACHE | Propagation et mise à jour transparente Service Worker | Bumper SW cache vers `super-tetris-v1.25.0` avec purge automatique des anciens assets | `sw.js`, `www/sw.js` |
+
+**Checklist senior post-fix v1.25.0 :**
+- ✅ Son officiel unique : `brick_break.wav` (360ms de la vidéo de référence)
+- ✅ Tous les fichiers de son temporaires/obsolètes supprimés du dossier `vendor/sounds/`
+- ✅ Écran Paramètres épuré, centré sur l'essentiel
+- ✅ Effet de désintégration voxel 3D actif sur lignes normales et booster Laser
+- ✅ Service Worker v1.25.0 avec skipWaiting et claim pour propagation immédiate
+- ✅ Déploiement GitHub Pages sur `https://land-lang-120.github.io/super-tetris/`
 
 ### 🔄 En cours
 - Push Play Store (en attente débloquage compte)

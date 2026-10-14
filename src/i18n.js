@@ -25,7 +25,7 @@
       play: "JOUER", newGame: "NOUVELLE PARTIE", time: "TEMPS", levels: "NIVEAUX", thrilling: "TRÉPIDANTS !",
       coins: "Pièces", rankRookie: "RECRUE", xp: "XP", back: "Retour", close: "Fermer",
       audioVibration: "Audio & vibration", soundFx: "Effets sonores",
-      soundFxDesc: "Bips au déplacement, lock, line clear, etc.",
+      soundFxDesc: "Fracas de briques cassées, lock, boosters, etc.",
       music: "Musique", musicDesc: "Thème iconique Tetris (Korobeiniki) en boucle",
       vibration: "Vibration", vibrationDesc: "Retour haptique sur Android",
       language: "Langue", appLanguage: "Langue de l'app", data: "Données",
@@ -63,7 +63,8 @@
     en: {
       settings: "Settings", shop: "Shop", localRank: "Local ranking", play: "PLAY", newGame: "NEW GAME", time: "TIME",
       levels: "THRILLING", thrilling: "LEVELS!", coins: "Coins", rankRookie: "ROOKIE", xp: "XP", back: "Back", close: "Close",
-      audioVibration: "Audio & vibration", soundFx: "Sound effects", soundFxDesc: "Move, lock, line clear beeps and more.",
+      audioVibration: "Audio & vibration", soundFx: "Sound effects",
+      soundFxDesc: "Realistic brick break impact, lock, boosters and more.",
       music: "Music", musicDesc: "Iconic Tetris theme (Korobeiniki) loop", vibration: "Vibration", vibrationDesc: "Haptic feedback on Android",
       language: "Language", appLanguage: "App language", data: "Data", resetAll: "Reset all data (score, XP, boosters, coins)",
       resetConfirm: "⚠️ Really erase? Tap a 2nd time", cancel: "Cancel", about: "About", version: "Version", studio: "Studio",

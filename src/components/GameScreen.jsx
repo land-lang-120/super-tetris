@@ -402,6 +402,29 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange, onOpen
     // FX : lock (haptic + sound)
     fxLock();
 
+    // Détection des cellules des lignes détruites pour l'effet de briques 3D éclatées (vidéo Block Crush)
+    const shatteredCells = [];
+    const cv = canvasRef.current;
+    const cellSize = cv ? Math.floor(cv.width / window.STCore.COLS) : 30;
+
+    for (let r = 0; r < window.STCore.ROWS; r++) {
+      let isFull = true;
+      for (let c = 0; c < window.STCore.COLS; c++) {
+        if (!G.grid[r][c]) { isFull = false; break; }
+      }
+      if (isFull) {
+        for (let c = 0; c < window.STCore.COLS; c++) {
+          const val = G.grid[r][c];
+          const color = (window.STPieces && window.STPieces.colorOf(val)) || "#00d4e0";
+          shatteredCells.push({
+            x: c * cellSize,
+            y: r * cellSize,
+            color: color
+          });
+        }
+      }
+    }
+
     const prevLevel = G.level;
     const cleared = window.STCore.clearLines(G.grid);
     G.grid = cleared.grid;
@@ -422,10 +445,16 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange, onOpen
     // Combo state pour UI
     setCombo(G.combo);
 
-    // Flash effect + FX sur les lignes effacées
+    // Flash effect + Désintégration en briques 3D voxels + FX sur les lignes effacées
     if (cleared.lines.length) {
       setFlashRows(cleared.lines);
       setTimeout(() => setFlashRows([]), 200);
+
+      // Désintégration en briques 3D voxels (Effet vidéo de référence Block Crush)
+      if (window.STParticles && typeof window.STParticles.addBrickShatter === "function") {
+        window.STParticles.addBrickShatter(shatteredCells, cellSize);
+      }
+
       fxLineClear(cleared.count);
     }
 
@@ -521,14 +550,22 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange, onOpen
         const Gnow = gRefForLaser.current;
         if (!Gnow || Gnow.gameOver) return;
         const result = window.STBoosters.applyLaser(Gnow);
-        // Particules rouges sur chaque ligne effacée
+        // Particules rouges sur chaque ligne effacée + fracas de briques
+        if (result.lines.length > 0 && window.STAudio && typeof window.STAudio.brickBreak === "function") {
+          window.STAudio.brickBreak(result.lines.length);
+        }
         if (cv && window.STParticles && result.lines.length > 0) {
+          const laserShattered = [];
           result.lines.forEach(function (rowIdx) {
             const cy = rowIdx * cellSize + cellSize / 2;
             for (let x = 0; x < window.STCore.COLS; x++) {
+              laserShattered.push({ x: x * cellSize, y: rowIdx * cellSize, color: "#ff2020" });
               window.STParticles.addExplosion(x * cellSize + cellSize / 2, cy, "#ff2020");
             }
           });
+          if (typeof window.STParticles.addBrickShatter === "function") {
+            window.STParticles.addBrickShatter(laserShattered, cellSize);
+          }
         }
         setTick(t => t + 1);
       }, 340);
@@ -567,12 +604,14 @@ function GameScreen({ onExitToHome, onGameOver, profile, onProfileChange, onOpen
           // Retire le météore VFX synchronisé (sinon il continue à tomber)
           if (window.STBoosterFX) window.STBoosterFX.killMeteorAt(p.col);
           if (cv && window.STParticles && r && r.hits > 0) {
+            if (window.STAudio && typeof window.STAudio.brickCrack === "function") {
+              window.STAudio.brickCrack();
+            }
             const px = p.col * cellSize + cellSize / 2;
             const py = (p.topRow >= 0 ? p.topRow : 0) * cellSize + cellSize / 2;
             window.STParticles.addShockwave(px, py);
             window.STParticles.addExplosion(px, py, "#ff9000");
           }
-          // Pas de sound supplémentaire ici (boosterMeteor au déclenchement = sweep complet)
           // Haptic léger à chaque impact pour le feedback tactile.
           if (window.STHaptics) window.STHaptics.vibePattern("move");
           setTick(t => t + 1);

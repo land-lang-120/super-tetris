@@ -1,6 +1,6 @@
 {
   "name": "super-tetris",
-  "version": "1.22.10",
+  "version": "1.25.0",
   "description": "Super Tetris — The iconic puzzle game with boosters, daily fortune wheel and legendary music.",
   "main": "build.js",
   "scripts": {
